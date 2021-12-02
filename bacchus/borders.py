@@ -4,75 +4,141 @@
 """General functions to compute borders and insulation score.
 
 Functions:
-    - insulation_score
-    - borders
-    - blob_score
-    - ab_compartments
+    - compartments_sparse
 """
 
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
-import click
-import copy
-import re
+import bacchus.hic as bch
+import bacchus.plot as bcp
 import hicstuff.hicstuff as hcs
-import hicstuff.commands as hcc
-import hicstuff.io as hio
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import os
-import scipy
-from os.path import join
-from scipy.linalg import eig
+import scipy.sparse as sp
+import scipy.linalg as sl
 
 
-import matplotlib.pyplot as plt
-import numpy as np
-import scipy.signal
+def compartments_sparse(
+    M: "scipy.sparse.cr_matrix",
+    normalize: bool = True,
+    plot_dir: Optional[str] = None,
+    circular: bool = True,
+    antidiagonal: bool = False,
+):
+    """A/B compartment analysis
 
+    Performs a detrending of the power law followed by a PCA-based A/B
+    compartment analysis on a sparse, normalized, single chromosome contact map.
+    The results are two vectors whose values (negative or positive) should
+    presumably correlate with the presence of 'active' vs. 'inert' chromatin.
 
-def get_relative_insulation(M, w, s):
+    Parameters
+    ----------
+    M : array_like
+        The input, normalized contact map. Must be a single chromosome. Values
+        are assumed to be only the upper triangle of a symmetrix matrix.
+    normalize : bool
+        Whether to normalize the matrix beforehand.
+    plot_dir : directory
+        Directory to save plot. Required if none given, do not build plot.
+    circular : bool
+        Either the matrix is circualr or not.
+    antidiagonal : True
+        Either there is an antidiagonal on the matrix or not. This is still in
+        development.
+
+    Returns
+    -------
+    numpy.ndarray:
+        An array containing the first principal component.
+    numpy.ndarray:
+        An array containing the second principal component.
+
+    TODO: Adapt detrending to circular matrix ? Is it really necessary ?
+    TODO: Detrending antidiagonal, make sure to center on the antidiagonal.
     """
-    Function to compute the relative insulation score
-    depending on the window size and of one position.
-    The method is based on the method described in
-    https://doi.org/10.1093/nar/gky789 and implemented
-    in R: https://github.com/ChenFengling/RHiCDB.
+
+    # Make matrix symetric (in case of upper triangle)
+    M = M.tocsr()
+    M = bch.sym(M)
+
+    # Normalize the matrix
+    if normalize:
+        M = hcs.normalize_sparse(M, norm="SCN")
+    M = M.tocoo()
+    n = M.shape[0]
+
+    # Detrend by the distance law
+    dist_vals = np.array([np.average(M.diagonal(j)) for j in range(n)])
+    M.data = M.data / dist_vals[abs(M.row - M.col)]
+
+    # Detrend the antidiagonal
+    if antidiagonal:
+        M = np.rot90(M.todense())
+        dist_vals = np.array([np.average(M.diagonal(j)) for j in range(n)])
+        M = sp.coo_matrix(M)
+        M.data = np.log2(M.data / dist_vals[abs(M.row - M.col)])
+        M = np.rot90(M.todense()).T
+        M = sp.coo_matrix(M)
+
+    # Plot detrend matrix
+    if plot_dir is not None:
+        detrend_map_file = os.path.join(plot_dir, "detrend_map.png")
+        bcp.map(
+            M.toarray(),
+            dpi=200,
+            cmap="Reds",
+            out_file=detrend_map_file,
+            title="Detrend contact map",
+        )
+
+    # Compute correlation matrix on full matrix
+    M = M.tocsr()
+    M = hcs.corrcoef_sparse(M)
+    M[np.isnan(M)] = 0.0
+
+    # Plot correlation matrix
+    if plot_dir is not None:
+        correlation_map_file = os.path.join(plot_dir, "correlation_map.png")
+        bcp.map_ratio(
+            M,
+            dpi=200,
+            cmap="seismic",
+            lim=1,
+            out_file=correlation_map_file,
+            ratio=True,
+            title="Correlation contact map",
+        )
+
+    # Extract eigen vectors and eigen values
+    [eigen_vals, pr_comp] = sl.eig(M)
+
+    return pr_comp[:, 0], pr_comp[:, 1]
+
+
+def get_insulation_score(M, window, s):
+    """Function to compute the relative insulation score depending on the window
+    size and of one position. The method is based on the method described in
+    https://doi.org/10.1093/nar/gky789 and implemented in R:
+    https://github.com/ChenFengling/RHiCDB.
+
+    Parameters
+    ----------
+    M : numpy.ndarray
+        Extended dense matrix with size w.
+    window : int
+        Size of the window used to compute the insulation score.
+    s : int
+        Genomic coordiates where to compute the relative insulation score.
+
+    Returns
+    -------
+    float:
+        Relative insulation score at the genomic position s with the range w.
     """
-    n = len(M)
     up = []
     down = []
     between = []
-    if s < w:
-        N11 = M[n - w + s :, n - w + s :]
-        N22 = M[: s + w, : s + w]
-        N12 = M[n - w + s :, : s + w]
-        N21 = M[: s + w, n - w + s :]
-        N = np.concatenate(
-            (
-                np.concatenate((N11, N12), axis=1),
-                np.concatenate((N21, N22), axis=1),
-            ),
-            axis=0,
-        )
-
-    elif n - s < w:
-        N11 = M[s - w :, s - w :]
-        N22 = M[: w - n + s, : w - n + s]
-        N12 = M[s - w :, : w - n + s]
-        N21 = M[: w - n + s, s - w :]
-        N = np.concatenate(
-            (
-                np.concatenate((N11, N12), axis=1),
-                np.concatenate((N21, N22), axis=1),
-            ),
-            axis=0,
-        )
-    else:
-        N = M[s - w : s + w, s - w : s + w]
-
+    N = M[s : s + 2 * w, s : s + 2 * w]
     for i in range(0, 2 * w):
         for j in range(i, 2 * w):
             if i < w:
@@ -91,6 +157,15 @@ def get_relative_insulation(M, w, s):
 
 
 def get_average_relative_insulation(M, list_w, s):
+    """
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    
+    """
     ari = 0
     for w in list_w:
         ari += get_relative_insulation(M, w, s)
@@ -98,6 +173,15 @@ def get_average_relative_insulation(M, list_w, s):
 
 
 def get_relative_insulation_curve(M, list_w):
+    """
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    
+    """
     ri = []
     for s in range(len(M)):
         ri.append(get_average_relative_insulation(M, list_w, s))
@@ -105,34 +189,31 @@ def get_relative_insulation_curve(M, list_w):
 
 
 def get_relative_insulation_curve_simple(M, w):
+    """
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    
+    """
     ri = []
     for s in range(len(M)):
         ri.append(get_relative_insulation(M, w, s))
     return ri
 
 
-def mask_white_line(M, n_mads=3):
-    """Function to put nan in the row/column where there are too much zeros."""
-    matrix = M.copy()
-
-    def mad(x):
-        return ss.median_absolute_deviation(x, nan_policy="omit")
-
-    # Compute number of nonzero values in each bin
-    sum_bins = (matrix == 0).sum(axis=0)
-    # Compute variation in the number of nonzero pixels
-    sum_mad = mad(sum_bins)
-    # Find poor interacting rows and columns
-    sum_med = np.median(sum_bins)
-    detect_threshold = max(1, sum_med + sum_mad * n_mads)
-
-    # Removal of poor interacting rows and columns
-    bad_bins = np.flatnonzero(sum_bins >= detect_threshold)
-
-    return bad_bins
-
-
 def compute_lri(ri):
+    """
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    
+    """
     # Compute the first and second envelope to compute the local LRI
     # First enveloppe
     first_enveloppe_index = scipy.signal.find_peaks([-x for x in ri])[0]
@@ -176,6 +257,22 @@ def compute_lri(ri):
             lri.append(ri[i] - second_enveloppe[j])
             i += 1
     return lri, first_enveloppe_index, second_enveloppe, second_enveloppe_index
+
+
+## TODO
+
+
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import re
+import hicstuff.commands as hcc
+import hicstuff.io as hio
+import matplotlib.pyplot as plt
+import pandas as pd
+import scipy
+import numpy as np
+import scipy.signal
 
 
 def plot(M, lri, final_borders, outfile):
@@ -259,90 +356,6 @@ def main(M, list_w, out):
         for i in final_borders:
             out.write("{0}\t{1}\n".format(i * 2000, lri[int(i)]))
     return lri
-
-
-def compartments_sparse(
-    M, normalize=True, plot=False, plot_dir=None, circular=False
-):
-    """A/B compartment analysis
-
-    Performs a detrending of the power law followed by a PCA-based A/B
-    compartment analysis on a sparse, normalized, single chromosome contact map.
-    The results are two vectors whose values (negative or positive) should
-    presumably correlate with the presence of 'active' vs. 'inert' chromatin.
-
-    Parameters
-    ----------
-    M : array_like
-        The input, normalized contact map. Must be a single chromosome. Values
-        are assumed to be only the upper triangle of a symmetrix matrix.
-    normalize : bool
-        Whether to normalize the matrix beforehand.
-    plot : bool
-        An optionale boolean to display plot or not.
-    plot_dir : directory
-        Directory to save plot. Required if plot enabled.
-
-    Returns
-    -------
-    numpy.ndarray
-        An array containing the first principal component.
-    numpy.ndarray
-        An array containing the second principal component.
-    """
-    # Normalize the matrix
-    if normalize:
-        N = hcs.normalize_sparse(M, norm="SCN")
-    else:
-        N = copy.copy(M)
-    N = N.tocoo()
-    n = N.shape[0]
-
-    # Detrend by the distance law
-    dist_vals = np.array([np.average(N.diagonal(j)) for j in range(n)])
-    N.data = N.data / dist_vals[abs(N.row - N.col)]
-
-    # Detrend secondary diagonal
-    L = np.rot90(N.todense())
-    dist_vals = np.array([np.average(L.diagonal(j)) for j in range(n)])
-    L = scipy.sparse.coo_matrix(L)
-    L.data = np.log2(L.data / dist_vals[abs(L.row - L.col)])
-    N = np.rot90(L.todense()).T
-    N = scipy.sparse.coo_matrix(N)
-
-    # Make matrix symmetric (in case of upper triangle)
-    N = N.tocsr()
-    if (abs(N - N.T) > 1e-10).nnz != 0:
-        N = N + N.T
-        N.setdiag(N.diagonal() / 2)
-        N.eliminate_zeros()
-
-    # Plot detrend matrix
-    if plot:
-        detrend_map_file = join(plot_dir, "detrend_map.png")
-        M = N.toarray()
-        plt.imshow(M, cmap="seismic")
-        plt.colorbar()
-        plt.savefig(detrend_map_file)
-        plt.clf()
-
-    # Compute correlation matrix on full matrix
-    N = N.tocsr()
-    N = hcs.corrcoef_sparse(N)
-    N[np.isnan(N)] = 0.0
-
-    # Plot correlation matrix
-    if plot:
-        correlation_map_file = join(plot_dir, "correlation_map.png")
-        plt.imshow(N, cmap="seismic", vmin=-1, vmax=1)
-        plt.colorbar()
-        plt.savefig(correlation_map_file)
-        plt.clf()
-
-    # Extract eigen vectors and eigen values
-    [eigen_vals, pr_comp] = eig(N)
-
-    return pr_comp[:, 0], pr_comp[:, 1]
 
 
 @click.command()

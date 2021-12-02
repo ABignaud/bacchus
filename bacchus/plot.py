@@ -15,6 +15,7 @@ Functions:
 
 import matplotlib.pyplot as plt
 import numpy as np
+import re
 from typing import List, Optional
 
 
@@ -290,8 +291,8 @@ def map_ratio(
     end: int = 0,
     lim: float = 2,
     out_file: Optional[str] = None,
+    ratio: bool = False,
     start: int = 0,
-    serpentine: bool = False,
     title: Optional[str] = None,
 ):
     """Function to plot a log2 ratio of two matrices or a region of it. A
@@ -304,10 +305,11 @@ def map_ratio(
 
     mat1 : numpy.ndarray
         First matrix to use for the log ratio plot. Positive value on the
-        colorscale. If serpentine set to True it will be the serpentine matrix.
+        colorscale. If ratio set to True it will be the final matrix (upper
+        right if a second is given).
     mat2 : numpy.ndarray
         Second matrix to use for the log ratio plot. Negative value on the
-        colorscale. If serpentine set to True it will be the log ratio matrix if
+        colorscale. If ratio set to True it will be the lower down matrix if
         one is given.
     axis : str
         Either 'bin', 'bp', 'kb' or 'Mb'. Graduation on the x and y axis. The
@@ -324,12 +326,12 @@ def map_ratio(
         until the end of the matrix.
     lim : float
         Limits of the colorscale (max and minus will be the negative).
+    ratio : bool
+        Either final ratios are given or not.
     out_file : str
         Path of the output file to save the plot. The extension have to match 
         matplotlib.pyplot.savefig extensions. If none given, don't save the
         figure.
-    serpentine : bool
-        Either a serpentine ratio is given or not.
     start : int
         Start position in bins of the region plot. If none given, it will start 
         with the beginning of the matrix. [Default: 0]
@@ -352,7 +354,7 @@ def map_ratio(
         end = len(mat)
 
     # Compute the matrices
-    if serpentine:
+    if ratio:
         if mat2 is not None:
             mat = np.tril(mat2, k=-1) + np.triu(mat1)
         else:
