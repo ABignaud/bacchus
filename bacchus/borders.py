@@ -13,8 +13,10 @@ import bacchus.plot as bcp
 import hicstuff.hicstuff as hcs
 import numpy as np
 import os
+import scipy.signal as ss
 import scipy.sparse as sp
 import scipy.linalg as sl
+from typing import List, Optional
 
 
 def compartments_sparse(
@@ -115,7 +117,7 @@ def compartments_sparse(
     return pr_comp[:, 0], pr_comp[:, 1]
 
 
-def get_insulation_score(M, window, s):
+def get_relative_insulation(M: "numpy.ndarray", window: int, s: int):
     """Function to compute the relative insulation score depending on the window
     size and of one position. The method is based on the method described in
     https://doi.org/10.1093/nar/gky789 and implemented in R:
@@ -126,137 +128,139 @@ def get_insulation_score(M, window, s):
     M : numpy.ndarray
         Extended dense matrix with size w.
     window : int
-        Size of the window used to compute the insulation score.
+        Size of the half window (Look for contacts at a genomic range of window)
+        used to compute the insulation score. 
     s : int
         Genomic coordiates where to compute the relative insulation score.
 
     Returns
     -------
     float:
-        Relative insulation score at the genomic position s with the range w.
+        Relative insulation score at the genomic position between s and s + 1
+        with the range window.
     """
-    up = []
-    down = []
-    between = []
-    N = M[s : s + 2 * w, s : s + 2 * w]
-    for i in range(0, 2 * w):
-        for j in range(i, 2 * w):
-            if i < w:
-                if j < w:
-                    up.append(N[i, j])
-                # elif j - i <= w:
-                else:
-                    between.append(N[i, j])
-            else:
-                down.append(N[i, j])
-    up = np.nanmean(up)
-    down = np.nanmean(down)
-    between = np.nanmean(between)
-    ri = (up + down - between) / (2 * (up + down + between))
-    return ri
+    # Extract the matrix of interest. No problematic edge case are possible are
+    # the matrix have been extended.
+    N = M[s : s + 2 * window, s : s + 2 * window]
+    # Compute the mean for each part of the matrix
+    up = np.nanmean(np.triu(N[:window, :window]))
+    down = np.nanmean(np.triu(N[window:, window:]))
+    between = np.nanmean(N[:window, window:])
+    # Compute the relative index
+    return (up + down - between) / (up + down + between)
 
 
-def get_average_relative_insulation(M, list_w, s):
-    """
+def get_ri_score(M: "numpy.ndarray", list_w: List[int]):
+    """Function to get the relative insulation score on the whole matrix. It
+    supposed the matrix is circular.
 
     Parameters
     ----------
+    M : numpy.ndarray
+        Matrix dense which should be circular to manage edge case.
+    list_w : list of int
+        List of half window size (Look for contacts at a genomic range of size
+        window) to use in bin scale.
 
     Returns
     -------
-    
+    numpy.ndarray
+        Vector of the relative insulation score for each bin of the matrix.
     """
-    ari = 0
-    for w in list_w:
-        ari += get_relative_insulation(M, w, s)
-    return ari / len(list_w)
+    # Compute size of M and prepare the vector.
+    n = len(M)
+    relative_insulation_score = np.zeros(n)
+    max_w = np.max(list_w)
+    len_w = len(list_w)
+
+    # Extend the matrix to avoid edge case using circular matrix property.
+    M = bch.map_extend(M, max_w)
+    # Compute the relative index score.
+    for s in range(n):
+        for w in list_w:
+            # Correct s to correspond at the current w (correction for extended
+            # matrix coordinates)
+            pos = s + max_w - w
+            # Compute the average relative insulation score
+            relative_insulation_score[s] += (
+                get_relative_insulation(M, w, pos) / len_w
+            )
+    return ri_score
 
 
-def get_relative_insulation_curve(M, list_w):
-    """
+def get_lri_score(ri_score: "numpy.ndarray"):
+    """As the relative insulation score depends on the matrix and insulation
+    score of the closed regions. It's necessary to defined it locally. This
+    function allows to do it by removing the second enveloppe to the signal. The
+    method is based on the method described in
+    https://doi.org/10.1093/nar/gky789 and implemented in R:
+    https://github.com/ChenFengling/RHiCDB.
 
     Parameters
     ----------
+    ri_score : numpy.ndarray
+        Vector of the relative insulation score along the whole genome.
 
     Returns
     -------
-    
-    """
-    ri = []
-    for s in range(len(M)):
-        ri.append(get_average_relative_insulation(M, list_w, s))
-    return ri
-
-
-def get_relative_insulation_curve_simple(M, w):
+    numpy.ndarray:
+        Vector of the local relative insulation score along the whole genome.
+    List of numpy.ndarray:
+        List of the vector of the first enveloppe, its index, the second
+        enveloppe and its index.
     """
 
-    Parameters
-    ----------
-
-    Returns
-    -------
-    
-    """
-    ri = []
-    for s in range(len(M)):
-        ri.append(get_relative_insulation(M, w, s))
-    return ri
-
-
-def compute_lri(ri):
-    """
-
-    Parameters
-    ----------
-
-    Returns
-    -------
-    
-    """
     # Compute the first and second envelope to compute the local LRI
     # First enveloppe
-    first_enveloppe_index = scipy.signal.find_peaks([-x for x in ri])[0]
+    first_enveloppe_index = ss.find_peaks([-x for x in ri_score])[0]
     first_enveloppe_index = np.concatenate(
-        ([0], first_enveloppe_index, [len(ri) - 1])
+        ([0], first_enveloppe_index, [len(ri_score) - 1])
     )
-    first_enveloppe = [ri[i] for i in first_enveloppe_index]
+    first_enveloppe = [ri_score[i] for i in first_enveloppe_index]
     # Possible as the genome is circular
     a = np.mean([first_enveloppe[1], first_enveloppe[-2]])
     first_enveloppe[0] = a
     first_enveloppe[-1] = a
 
     # Second enveloppe
-    second_enveloppe_index = scipy.signal.find_peaks(
-        [-x for x in first_enveloppe]
-    )[0]
+    second_enveloppe_index = ss.find_peaks([-x for x in first_enveloppe])[0]
     second_enveloppe_index = [
         first_enveloppe_index[i] for i in second_enveloppe_index
     ]
     second_enveloppe_index = np.concatenate(
-        ([0], second_enveloppe_index, [len(ri) - 1])
+        ([0], second_enveloppe_index, [len(ri_score) - 1])
     )
-    second_enveloppe = [ri[i] for i in second_enveloppe_index]
+    second_enveloppe = [ri_score[i] for i in second_enveloppe_index]
+
     # Possible as the genome is circular
     a = np.mean([second_enveloppe[1], second_enveloppe[-2]])
     second_enveloppe[0] = a
     second_enveloppe[-1] = a
 
-    # Remove second enveloppe to ri to have a local ri
+    # Remove second enveloppe to the relative insulation score to have a local
+    # relative insulation score.
     i = 0
-    lri = []
+    lri_score = []
     for j, k in enumerate(second_enveloppe_index):
         while i < k:
             a = (second_enveloppe[j] - second_enveloppe[j - 1]) / (
                 k - second_enveloppe_index[j - 1]
             )
             b = second_enveloppe[j] - a * k
-            lri.append(ri[i] - (a * i + b))
+            lri_score.append(ri_score[i] - (a * i + b))
             i += 1
         if i == k:
-            lri.append(ri[i] - second_enveloppe[j])
+            lri_score.append(ri_score[i] - second_enveloppe[j])
             i += 1
-    return lri, first_enveloppe_index, second_enveloppe, second_enveloppe_index
+    return (
+        lri_score,
+        [
+            first_enveloppe,
+            first_enveloppe_index,
+            second_enveloppe,
+            second_enveloppe_index,
+        ],
+    )
 
 
 ## TODO
