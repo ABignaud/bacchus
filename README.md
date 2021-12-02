@@ -1,2 +1,2 @@
 # bacchus
-Tools for analysis of BACterial Chromosome HiC data. (BACCHUS)
+BACterial CHromosome USeful tools for genomics study. (BACCHUS)
