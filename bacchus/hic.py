@@ -5,15 +5,97 @@
 from the HiC contact map.
 
 Functions:
+    - compute_hic_signal
     - get_win_density
     - is_sym
+    - map_extend
+    - mask_white_line
     - sym
 """
 
 
 import chromosight.utils.detection as cud
 import chromosight.utils.preprocessing as cup
+import numpy as np
 import scipy.sparse as sp
+import scipy.stats as st
+from typing import Optional
+
+
+def compute_hic_signal(
+    M: "numpy.ndarray",
+    binning: Optional[int] = None,
+    start: Optional[int] = None,
+    stop: Optional[int] = None,
+):
+    """Compute the Hic signal of a dense matrix.
+
+    Parameters
+    ----------
+    M : numpy.ndarray
+        Matrix to compute the HiC signal. The matrix has to be circular.
+    binning : int
+        Binning size of the matrix in base pair.
+    start : int
+        Position in base pair to start consider the signal (genomic distance).
+    stop : int
+        Position in base pair to stop consider the signal (genomic distance).
+
+    Returns
+    -------
+    numpy.ndarray:
+        Vector of HiC signal values.
+
+    TODO: Transform it to use map extend instead.
+    """
+    # Compute the size of the matrix and change positions in bin coordonates.
+    n = len(M)
+    values = np.zeros((n))
+
+    # Define start and stop if none given it will use the second diagonal.
+    if binning is None:
+        start = 1
+        stop = 2
+    else:
+        start = start // binning
+        stop = stop // binning
+
+    # Compute the HiC signal and correct values depending on the circular
+    # signal.
+    for i in range(n):
+        if i < stop:
+            if i < start:
+                values[i] = np.nansum(
+                    M[n + i - stop : n + i - start, i + start : i + stop]
+                )
+            else:
+                values[i] = np.nansum(
+                    np.concatenate(
+                        (
+                            M[n + i - stop :, i + start : i + stop],
+                            M[: i - start, i + start : i + stop],
+                        ),
+                        axis=0,
+                    )
+                )
+        elif n - i < stop:
+            if n - i < start:
+                values[i] = np.nansum(
+                    M[i - stop : i - start, start - n + i : stop - n + i]
+                )
+            else:
+                values[i] = np.nansum(
+                    np.concatenate(
+                        (
+                            M[i - stop : i - start, i + start :],
+                            M[i - stop : i - start, : stop - n + i],
+                        ),
+                        axis=1,
+                    )
+                )
+        else:
+            values[i] = np.nansum(M[i - stop : i - start, i + start : i + stop])
+    return values
 
 
 def get_win_density(
@@ -81,10 +163,6 @@ def get_win_density(
     return density
 
 
-## TODO
-# def compute_hicreppy(matrices: List[numpy.ndarray], fragment):
-
-
 def is_sym(M: scipy.sparse.csr_matrix) -> bool:
     """Test if a matrix is symmetric, i.e. is the transposed matrix is the same.
     
@@ -99,6 +177,51 @@ def is_sym(M: scipy.sparse.csr_matrix) -> bool:
         Either the matrix is symetric or not
     """
     return np.all(M == M.T)
+
+
+def map_extend(M, s):
+    """Function to extend a circular matrix at all the edges to easily managed 
+    edge cases when we do computation using .
+    """
+    n = len(M)
+    M = np.concatenate((M[n - s :,], M, M[:s,]), axis=0)
+    M = np.concatenate((M[:, n - s :], M, M[:, :s]), axis=1)
+    return M
+
+
+def mask_white_line(matrix, n_mads=3):
+    """Function to put nan in the row/column where there are too much zeros to
+    mask them in further analysis.
+    
+    Parameters
+    ----------
+    matrix : numpy.ndarray
+        Dense matrix.
+    n_mads : int
+        Number of median absolute deviation used as threshold.
+
+    Returns
+    -------
+    numpy.ndarray
+        Dense matrix with nan in bins with poor density of contacts.
+    """
+
+    def mad(x):
+        return st.median_absolute_deviation(x, nan_policy="omit")
+
+    # Compute number of nonzero values in each bin
+    sum_bins = (matrix == 0).sum(axis=0)
+    # Compute variation in the number of nonzero pixels
+    sum_mad = mad(sum_bins)
+    # Find poor interacting rows and columns
+    sum_med = np.median(sum_bins)
+    detect_threshold = max(1, sum_med + sum_mad * n_mads)
+    # Removal of poor interacting rows and columns
+    bad_bins = np.flatnonzero(sum_bins >= detect_threshold)
+    # Replace bad bins by nan
+    matrix[bad_bins] = np.nan
+    matrix[:, bad_bins] = np.nan
+    return matrix
 
 
 def sym(M: scipy.sparse.csr_matrix) -> scipy.sparse.csr_matrix:
