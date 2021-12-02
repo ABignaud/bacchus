@@ -60,7 +60,7 @@ def compute_antidiagonal(
                 np.concatenate((np.diag(N, k=i), np.diag(N, k=n + i)))
             )
         values[n - 1] = np.nanmean(np.diag(N, k=0))
-    
+
         # Concatenate the vector too cover all the genomic positions as we take
         # the whole antidiagonals, each of them are equivalent to the opposite
         # point on the genome.
@@ -134,7 +134,7 @@ def compute_antidiagonal_scalogram(
         values[i] = np.concatenate((values[i][start:], values[i][:start]))
     return values
 
-    def compute_partial_antidaigonal(N, s):
+    def compute_partial_antidiagonal(N, s):
         """Function to compute from the rotated matrix the strength of a partial
         antidiagonal (all values takes between the main diagonal and the given
         genomic distance s).
