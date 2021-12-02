@@ -6,6 +6,7 @@
 Functions:
     - binned_map
     - build_map
+    - extract_big_wig
 """
 
 
@@ -13,6 +14,7 @@ import hicstuff.hicstuff as hcs
 import hicstuff.io as hio
 import numpy as np
 import pandas as pd
+import pyBigWig
 from typing import List, Tuple
 
 
@@ -127,3 +129,40 @@ def build_map(
     # Transform to dense matrix.
     M = M.toarray()
     return M
+
+
+def extract_big_wig(
+    file: str, binning: Optional[int] = None, ztransform: bool = True
+):
+    """Function to extract big wig information. It considered that the file is 
+    bin at 1 base pair and it has only one chromosome. If binning is set it will 
+    bin the tracks. 
+
+    Parameters
+    ----------
+    file : str
+        Path to the BigWig file
+    binning : int
+        Binning size for the output tracks in bp.
+    ztransform : bool
+        Whether to Z-transformed the track or not.
+    
+    Returns
+    -------
+    numpy.ndarray:
+        Vector of the tracks values binned and z-transformed if asked.
+    """
+    tab = pyBigWig.open(file)
+    for name in tab.chroms():
+        length = tab.chroms()[name]
+    values = tab.values(name, 0, length)
+    if binning is not None:
+        binned_values = np.zeros(((length // binning) + 1))
+        for i in range((length // binning) + 1):
+            binned_values[i] = np.nanmean(
+                values[binning * i : (binning + 1) * i]
+            )
+        values = binned_values
+    if ztransform:
+        (values - np.nanmean(values)) / np.nanstd(values)
+    return values
