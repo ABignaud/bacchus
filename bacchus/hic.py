@@ -99,8 +99,8 @@ def compute_hic_signal(
 
 
 def get_win_density(
-    mat: sp.csr_matrix, win_size: int = 3, sym_upper: bool = False
-) -> sp.csr_matrix:
+    mat: "scipy.sparse.csr_matrix", win_size: int = 3, sym_upper: bool = False
+) -> "scipy.sparse.csr_matrix":
     """Compute local pixel density in sparse matrices using convolution. The
     convolution is performed in 'full' mode: Computations are performed all the
     way to the edges by trimming the kernel.
@@ -163,9 +163,9 @@ def get_win_density(
     return density
 
 
-def is_sym(M: scipy.sparse.csr_matrix) -> bool:
+def is_sym(M: "scipy.sparse.csr_matrix") -> bool:
     """Test if a matrix is symmetric, i.e. is the transposed matrix is the same.
-    
+
     Parameters
     ----------
     M : scipy.sparse.csr_matrix
@@ -180,11 +180,22 @@ def is_sym(M: scipy.sparse.csr_matrix) -> bool:
 
 
 def map_extend(M, s):
-    """Function to extend a circular matrix at all the edges to easily managed 
+    """Function to extend a circular matrix at all the edges to easily managed
     edge cases when we do computation using .
     """
     n = len(M)
-    M = np.concatenate((M[n - s :,], M, M[:s,]), axis=0)
+    M = np.concatenate(
+        (
+            M[
+                n - s :,
+            ],
+            M,
+            M[
+                :s,
+            ],
+        ),
+        axis=0,
+    )
     M = np.concatenate((M[:, n - s :], M, M[:, :s]), axis=1)
     return M
 
@@ -192,7 +203,7 @@ def map_extend(M, s):
 def mask_white_line(matrix, n_mads=3):
     """Function to put nan in the row/column where there are too much zeros to
     mask them in further analysis.
-    
+
     Parameters
     ----------
     matrix : numpy.ndarray
@@ -203,7 +214,7 @@ def mask_white_line(matrix, n_mads=3):
     Returns
     -------
     numpy.ndarray
-        Dense matrix with nan in bins with poor density of contacts.
+        List of positions the bins with poor coverage (white lines).
     """
 
     def mad(x):
@@ -218,16 +229,14 @@ def mask_white_line(matrix, n_mads=3):
     detect_threshold = max(1, sum_med + sum_mad * n_mads)
     # Removal of poor interacting rows and columns
     bad_bins = np.flatnonzero(sum_bins >= detect_threshold)
-    # Replace bad bins by nan
-    matrix[bad_bins] = np.nan
-    matrix[:, bad_bins] = np.nan
-    return matrix
+
+    return bad_bins
 
 
-def sym(M: scipy.sparse.csr_matrix) -> scipy.sparse.csr_matrix:
-    """Function to set the symmetric of a triangular matrix. Do nothing if the 
+def sym(M: "scipy.sparse.csr_matrix") -> "scipy.sparse.csr_matrix":
+    """Function to set the symmetric of a triangular matrix. Do nothing if the
     matrix is already triangular.
-    
+
     Parameters
     ----------
     M : scipy.sparse.csr_matrix

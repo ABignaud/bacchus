@@ -190,7 +190,7 @@ def antidiagonal_scalogram(
         plt.savefig(out_file, dpi=dpi)
 
 
-def map(
+def contact_map(
     mat: "numpy.ndarray",
     axis: str = "kb",
     binning: int = 1,
@@ -202,8 +202,8 @@ def map(
     title: Optional[str] = None,
     vmax: float = 99,
 ):
-    """Function to plot a matrix or a region of this matrix. 
-    
+    """Function to plot a matrix or a region of this matrix.
+
     Parameters
     ----------
 
@@ -223,11 +223,11 @@ def map(
         End position in bins of the region to plot. If none given, it will plot
         until the end of the matrix.
     out_file : str
-        Path of the output file to save the plot. The extension have to match 
+        Path of the output file to save the plot. The extension have to match
         matplotlib.pyplot.savefig extensions. If none given, don't save the
         figure.
     start : int
-        Start position in bins of the region plot. If none given, it will start 
+        Start position in bins of the region plot. If none given, it will start
         with the beginning of the matrix. [Default: 0]
     title : str
         Title to put on the plot. If none given, do not put any title.
@@ -266,7 +266,7 @@ def map(
     # Legend
     ax.set_xlabel(f"Genomic coordinates {axis:s}", fontsize=16)
     ax.set_ylabel(f"Genomic coordinates {axis:s}", fontsize=16)
-    ax.tick_params(size=16)
+    ax.tick_params(axis="both", labelsize=16)
 
     # Title
     if title is not None:
@@ -281,7 +281,7 @@ def map(
         plt.savefig(out_file, dpi=dpi)
 
 
-def map_ratio(
+def contact_map_ratio(
     mat1: "numpy.ndarray",
     mat2: "numpy.ndarray",
     axis: str = "kb",
@@ -299,7 +299,7 @@ def map_ratio(
     already computed serpentine log ratio could be given instead and displayed.
     If two matrices are given with the serpentine option, it will displayed the
     first one in the upper trinagle and the second if the lower triangle.
-    
+
     Parameters
     ----------
 
@@ -329,11 +329,11 @@ def map_ratio(
     ratio : bool
         Either final ratios are given or not.
     out_file : str
-        Path of the output file to save the plot. The extension have to match 
+        Path of the output file to save the plot. The extension have to match
         matplotlib.pyplot.savefig extensions. If none given, don't save the
         figure.
     start : int
-        Start position in bins of the region plot. If none given, it will start 
+        Start position in bins of the region plot. If none given, it will start
         with the beginning of the matrix. [Default: 0]
     title : str
         Title to put on the plot. If none given, do not put any title.
@@ -379,7 +379,7 @@ def map_ratio(
     # Legend
     ax.set_xlabel(f"Genomic coordinates {axis:s}", fontsize=16)
     ax.set_ylabel(f"Genomic coordinates {axis:s}", fontsize=16)
-    ax.tick_params(size=16)
+    ax.tick_params(axis="both", labelsize=16)
 
     # Title
     if title is not None:

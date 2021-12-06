@@ -21,7 +21,7 @@ def compute_antidiagonal(
     """Function to compute all the antidiagonal strength centered on the origin
     to be able to evaluate the strength of the antidiagonal passing through the
     origin of replication.
-    
+
     Parameters
     ----------
     M : numpy.ndarray
@@ -88,7 +88,7 @@ def compute_antidiagonal_scalogram(
     to be able to evaluate the strength of the antidiagonal passing through the
     origin of replication. It will automatically compute the half antidaigonal
     to be able to compare with it at a last point.
-    
+
     Parameters
     ----------
     M : numpy.ndarray
@@ -150,7 +150,7 @@ def compute_antidiagonal_scalogram(
         Returns
         -------
         numpy.ndarray
-            Vector of the strength of the partial antidaigonal at the given 
+            Vector of the strength of the partial antidaigonal at the given
             genomic distance s.
         """
 

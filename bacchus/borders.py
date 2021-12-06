@@ -16,7 +16,7 @@ import os
 import scipy.signal as ss
 import scipy.sparse as sp
 import scipy.linalg as sl
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 
 def compartments_sparse(
@@ -25,7 +25,7 @@ def compartments_sparse(
     plot_dir: Optional[str] = None,
     circular: bool = True,
     antidiagonal: bool = False,
-):
+) -> Tuple["numpy.ndarray"]:
     """A/B compartment analysis
 
     Performs a detrending of the power law followed by a PCA-based A/B
@@ -117,7 +117,7 @@ def compartments_sparse(
     return pr_comp[:, 0], pr_comp[:, 1]
 
 
-def get_relative_insulation(M: "numpy.ndarray", window: int, s: int):
+def get_relative_insulation(M: "numpy.ndarray", window: int, s: int) -> float:
     """Function to compute the relative insulation score depending on the window
     size and of one position. The method is based on the method described in
     https://doi.org/10.1093/nar/gky789 and implemented in R:
@@ -129,7 +129,7 @@ def get_relative_insulation(M: "numpy.ndarray", window: int, s: int):
         Extended dense matrix with size w.
     window : int
         Size of the half window (Look for contacts at a genomic range of window)
-        used to compute the insulation score. 
+        used to compute the insulation score.
     s : int
         Genomic coordiates where to compute the relative insulation score.
 
@@ -150,7 +150,7 @@ def get_relative_insulation(M: "numpy.ndarray", window: int, s: int):
     return (up + down - between) / (up + down + between)
 
 
-def get_ri_score(M: "numpy.ndarray", list_w: List[int]):
+def get_ri_score(M: "numpy.ndarray", list_w: List[int]) -> "numpy.ndarray":
     """Function to get the relative insulation score on the whole matrix. It
     supposed the matrix is circular.
 
@@ -188,7 +188,9 @@ def get_ri_score(M: "numpy.ndarray", list_w: List[int]):
     return ri_score
 
 
-def get_lri_score(ri_score: "numpy.ndarray"):
+def get_lri_score(
+    ri_score: "numpy.ndarray",
+) -> Tuple["numpy.ndarray", List["numpy.ndarray"]]:
     """As the relative insulation score depends on the matrix and insulation
     score of the closed regions. It's necessary to defined it locally. This
     function allows to do it by removing the second enveloppe to the signal. The
@@ -263,67 +265,44 @@ def get_lri_score(ri_score: "numpy.ndarray"):
     )
 
 
-## TODO
+def detect_final_borders(
+    lri_score: "numpy.ndarray", min_dist: int = 10
+) -> List[int]:
+    """Function to detect the borders based on the peaks on local relative
+    insulation score.
 
+    Parameters
+    ----------
+    lri_score : numpy.ndarray
+        Vector of the local relative insulation score.
+    min_dist : int
+        Size in bin which have to separate two different borders. [Default: 10]
 
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+    Returns
+    -------
+    list of int:
+        Position in bin coordinates of the final borders detected by the local
+        relative insulation score.
+    """
+    # Detect the peaks.
+    peaks = ss.find_peaks(lri)[0]
 
-import re
-import hicstuff.commands as hcc
-import hicstuff.io as hio
-import matplotlib.pyplot as plt
-import pandas as pd
-import scipy
-import numpy as np
-import scipy.signal
-
-
-def plot(M, lri, final_borders, outfile):
-    fig, ax = plt.subplots(
-        2,
-        1,
-        figsize=(10, 14),
-        gridspec_kw={"height_ratios": [4, 1], "width_ratios": [1]},
-    )
-    ax[0].imshow(M, cmap="Reds", vmax=np.percentile(M, 99))
-    ax[0].scatter(
-        final_borders,
-        final_borders,
-        edgecolors=None,
-        color="yellow",
-        s=15,
-        marker="x",
-    )
-    # plt.colorbar()
-    # ax[1].plot(ri)
-    # cutoff = np.median(lri) + np.std(lri)
-    # ax[1].axhline(y=cutoff, color="b", linestyle="dashed")
-    # ax[1].plot(first_enveloppe_index, first_enveloppe)
-    # ax[1].plot(second_enveloppe_index, second_enveloppe)
-    ax[1].plot(np.arange(0, len(lri)) * 0.002, lri, c="r")
-    ax[1].set_xlim([0, len(lri) * 0.002])
-    for i in final_borders:
-        ax[1].axvline(
-            x=i * 0.002, color="black", linestyle="dashed", linewidth=0.5
-        )
-    plt.savefig(outfile)
-
-
-def detect_final_borders(lri, list_w):
-    peaks = scipy.signal.find_peaks(lri)[0]
+    # Define a cutoff as the median plus one time the standard deviation.
     cutoff = np.median(lri) + np.std(lri)
-    cutoff_id = []
-    for i, v in enumerate(lri):
-        if v > cutoff:
-            cutoff_id.append(i)
+
+    # Append peaks in final borders if there are bigger than the cutoff and far
+    # enough from each other.
     final_borders = []
-    previous_border = -1000
+    previous_border = -np.inf
     for i in peaks:
-        if i in cutoff_id:
-            if i - previous_border < list_w[0]:
-                i = (i + previous_border) / 2
-                final_borders[-1] = i
+        # Check that the peak is relevant.
+        if lri[i] >= cutoff:
+            # Check if the peak is not part of a bigger peak. Keep only the
+            # biggest peak if there are two closed peaks.
+            if i - previous_border < min_dist:
+                if lri[i] > lri[previous_border]:
+                    final_borders[-1] = i
+                    previous_border = i
             else:
                 final_borders.append(i)
             previous_border = i
@@ -331,35 +310,55 @@ def detect_final_borders(lri, list_w):
     return final_borders
 
 
-def main(M, list_w, out):
+def get_insulation_score(
+    M: "numpy.ndarray", list_w: List[int]
+) -> Tuple["numpy.ndarray"]:
+    """Main function to return the peak border position from a HiC matrix using
+    the insulation score. The insulation score is computed on the correlation
+    matrix. The method is based on the method described in
+    https://doi.org/10.1093/nar/gky789 and implemented in R:
+    https://github.com/ChenFengling/RHiCDB.
+
+    Parameters
+    ----------
+    M : numpy.ndarray
+        Extended dense matrix with size w.
+    list_w : List of int
+        List of half window size (Look for contacts at a genomic range of size
+        window) to use in bin scale.
+
+    Returns
+    -------
+    numpy.ndarray:
+        Final borders detected.
+    numpy.ndarray:
+        Local relative insulation score list a the genomic position.
+    """
+    # Copy the matrix
     matrix = copy.copy(M)
+
+    # Detect the white lines on the matrix.
     mask = mask_white_line(matrix)
+
+    # Change white lines in values close to 0 fro the correlation.
     matrix[mask, :] = np.random.sample(matrix.shape[0]) / 10 ** 6
     matrix[:, mask] = np.random.sample(matrix.shape[0])[0] / 10 ** 6
     matrix = np.corrcoef(matrix)
+
+    # Transform them in nan to do not take them into account later.
     matrix[mask, :] = np.nan
     matrix[:, mask] = np.nan
+
+    # Get the realtive insulation curev on the correlation matrix.
     ri = get_relative_insulation_curve(matrix, list_w)
-    (
-        lri,
-        first_enveloppe_index,
-        second_enveloppe,
-        second_enveloppe_index,
-    ) = compute_lri(ri)
+    lri, _ = compute_lri(ri)
+
+    # Compute the final borders.
     final_borders = detect_final_borders(lri, list_w)
-    outfile = join(out, "in_vitro_R1_insulation_score.pdf")
-    out_lri = join(out, "in_vitro_R1_insulation_score.bed")
-    out_borders = join(out, "in_vitro_R1_borders.bed")
-    plot(M, lri, final_borders, outfile)
-    with open(out_lri, "w") as out:
-        out.write("position\tscore\n")
-        for i, value in enumerate(lri):
-            out.write("{0}\t{1}\n".format(i * 2000, value))
-    with open(out_borders, "w") as out:
-        out.write("position\tscore\n")
-        for i in final_borders:
-            out.write("{0}\t{1}\n".format(i * 2000, lri[int(i)]))
-    return lri
+    return final_borders, lri
+
+
+## TODO
 
 
 @click.command()

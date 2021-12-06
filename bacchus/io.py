@@ -15,12 +15,12 @@ import hicstuff.io as hio
 import numpy as np
 import pandas as pd
 import pyBigWig
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 
 def binned_map(
     matrix_file: str, fragment_file: str, bin_size: int
-) -> Tuple[scipy.sparse.csr_matrix, pandas.DataFrame]:
+) -> Tuple["scipy.sparse.csr_matrix", "pandas.DataFrame"]:
     """Function to bin a sparse matrix at a bin size value from a given graal
     file matrix.
 
@@ -85,10 +85,10 @@ def build_map(
     bin_size: int,
     normalize: bool = True,
     subsample: int = 0,
-) -> numpy.ndarray:
+) -> "numpy.ndarray":
     """Function to bin, normalize and subsample if necessary a given matrix. If
     more than a matrix is given it will concatenate them.
-    
+
     Parameters
     ----------
     matrix_files : list of str
@@ -134,9 +134,9 @@ def build_map(
 def extract_big_wig(
     file: str, binning: Optional[int] = None, ztransform: bool = True
 ):
-    """Function to extract big wig information. It considered that the file is 
-    bin at 1 base pair and it has only one chromosome. If binning is set it will 
-    bin the tracks. 
+    """Function to extract big wig information. It considered that the file is
+    bin at 1 base pair and it has only one chromosome. If binning is set it will
+    bin the tracks.
 
     Parameters
     ----------
@@ -146,7 +146,7 @@ def extract_big_wig(
         Binning size for the output tracks in bp.
     ztransform : bool
         Whether to Z-transformed the track or not.
-    
+
     Returns
     -------
     numpy.ndarray:
@@ -160,7 +160,7 @@ def extract_big_wig(
         binned_values = np.zeros(((length // binning) + 1))
         for i in range((length // binning) + 1):
             binned_values[i] = np.nanmean(
-                values[binning * i : (binning + 1) * i]
+                values[binning * i : binning * (i + 1)]
             )
         values = binned_values
     if ztransform:
