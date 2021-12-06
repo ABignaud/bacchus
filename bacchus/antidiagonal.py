@@ -91,9 +91,7 @@ def compute_antidiagonal_scalogram(
 
     Parameters
     ----------
-    M : numpy.ndarray
-        Dense matrix.
-    ori_pos : int
+    M : numpy.ndarrayormat "région", a
         Origin of replication position in base pair.
     binning : int
         Binning size in base pair.
@@ -134,7 +132,9 @@ def compute_antidiagonal_scalogram(
         values[i] = np.concatenate((values[i][start:], values[i][:start]))
     return values
 
-    def compute_partial_antidiagonal(N, s):
+    def compute_partial_antidiagonal(
+        N: "numpy.ndarray", s: int
+    ) -> "numpy.ndarray":
         """Function to compute from the rotated matrix the strength of a partial
         antidiagonal (all values takes between the main diagonal and the given
         genomic distance s).

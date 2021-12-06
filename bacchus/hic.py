@@ -27,7 +27,7 @@ def compute_hic_signal(
     binning: Optional[int] = None,
     start: Optional[int] = None,
     stop: Optional[int] = None,
-):
+) -> "numpy.ndarray":
     """Compute the Hic signal of a dense matrix.
 
     Parameters
@@ -169,7 +169,7 @@ def is_sym(M: "scipy.sparse.csr_matrix") -> bool:
     Parameters
     ----------
     M : scipy.sparse.csr_matrix
-        matrix to symetrize.
+        matrix to test if symetric.
 
     Returns
     -------
@@ -179,11 +179,26 @@ def is_sym(M: "scipy.sparse.csr_matrix") -> bool:
     return np.all(M == M.T)
 
 
-def map_extend(M, s):
+def map_extend(M: "numpy.ndarray", s: int) -> "numpy.ndarray":
     """Function to extend a circular matrix at all the edges to easily managed
-    edge cases when we do computation using .
+    edge cases when we do computation using.
+
+    Parameters
+    ----------
+    M : numpy.ndarray
+        Matrix to extend.
+    s : int
+        Numbers of bin to extend.
+
+    Returns
+    -------
+    numpy.ndarray
+        Extended matrix.
     """
+    # Comput the size of the initial matrix.
     n = len(M)
+    # Concatenate the borders as the matrix to extend it playing on the circular
+    # relations on both axis.
     M = np.concatenate(
         (
             M[
@@ -200,7 +215,9 @@ def map_extend(M, s):
     return M
 
 
-def mask_white_line(matrix, n_mads=3):
+def mask_white_line(
+    matrix: "numpy.ndarray", n_mads: int = 3
+) -> "numpy.ndarray":
     """Function to put nan in the row/column where there are too much zeros to
     mask them in further analysis.
 

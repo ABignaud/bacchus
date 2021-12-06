@@ -16,6 +16,7 @@ Functions:
 import matplotlib.pyplot as plt
 import numpy as np
 import re
+import seaborn as sns
 from typing import List, Optional
 
 
@@ -394,7 +395,48 @@ def contact_map_ratio(
         plt.savefig(out_file, dpi=dpi)
 
 
-def parse_axis_str(axis: str):
+def hicreppy(
+    data: "numpy.ndarray", labels: Optional[List[str]], outfile: Optional[str]
+):
+    """Function to plot the correlation matrix from hicreppy.
+
+    Parameters
+    ----------
+    data : numpy.ndarray
+        Matrix of the stratum corelation coefficient from hicreppy.
+    labels : list of str
+        List of the string to use as labels.
+    outfile : str
+        Path were to write the output plots. Extension should be compatible with
+        savefig.
+    """
+    # If no labels were given, just create a list of index (1-based).
+    if labels is None:
+        labels = [str(x) for x in np.arange(1, len(data) + 1)]
+
+    # Plot the correlation matrix with seaborn.
+    plt.subplots()
+    sns.set(font_scale=1)
+    ax = sns.clustermap(
+        data=data,
+        cmap="Reds",
+        xticklabels=labels,
+        yticklabels=labels,
+        row_cluster=True,
+        col_cluster=True,
+        tree_kws={"linewidths": 3},
+        annot=True,
+    )
+    plt.setp(ax.ax_heatmap.yaxis.get_majorticklabels(), rotation=0)
+    fig = ax.fig
+    fig.tight_layout(rect=[0, 0, 1, 1], pad=2)
+
+    # Save figure if an outfile is given.
+    if outfile is not None:
+        plt.savefig(outfile, dpi=100)
+
+
+def parse_axis_str(axis: str) -> float:
     """Axis string parsing
 
     Take a basepair unit string as input and converts it into corresponding

@@ -133,7 +133,7 @@ def build_map(
 
 def extract_big_wig(
     file: str, binning: Optional[int] = None, ztransform: bool = True
-):
+) -> "numpy.ndarray":
     """Function to extract big wig information. It considered that the file is
     bin at 1 base pair and it has only one chromosome. If binning is set it will
     bin the tracks.
