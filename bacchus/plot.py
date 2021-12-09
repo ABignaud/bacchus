@@ -265,8 +265,8 @@ def contact_map(
     )
 
     # Legend
-    ax.set_xlabel(f"Genomic coordinates {axis:s}", fontsize=16)
-    ax.set_ylabel(f"Genomic coordinates {axis:s}", fontsize=16)
+    ax.set_xlabel(f"Genomic coordinates ({axis:s})", fontsize=16)
+    ax.set_ylabel(f"Genomic coordinates ({axis:s})", fontsize=16)
     ax.tick_params(axis="both", labelsize=16)
 
     # Title
@@ -462,8 +462,8 @@ def parse_axis_str(axis: str) -> float:
     """
     axis = axis.upper()
     binsuffix = {"B": 1, "K": 1000, "M": 1e6, "G": 1e9}
-    unit_pos = re.search(r"[KMG]?B[P]?$", bin_str).start()
-    bp_unit = bin_str[unit_pos:]
+    unit_pos = re.search(r"[KMG]?B[P]?$", axis).start()
+    bp_unit = axis[unit_pos:]
     # Extract unit and use the according bin at the scaling factor.
     scaling_factor = 1 / binsuffix[bp_unit[0]]
     return scaling_factor

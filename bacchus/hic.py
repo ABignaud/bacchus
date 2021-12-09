@@ -14,12 +14,113 @@ Functions:
 """
 
 
+import bacchus.plot as bcp
 import chromosight.utils.detection as cud
 import chromosight.utils.preprocessing as cup
+import hicstuff.hicstuff as hcs
 import numpy as np
+import scipy.linalg as sl
 import scipy.sparse as sp
 import scipy.stats as st
-from typing import Optional
+from typing import Optional, Tuple
+
+
+def compartments_sparse(
+    M: "scipy.sparse.cr_matrix",
+    normalize: bool = True,
+    plot_dir: Optional[str] = None,
+    circular: bool = True,
+    antidiagonal: bool = False,
+) -> Tuple["numpy.ndarray"]:
+    """A/B compartment analysis
+
+    Performs a detrending of the power law followed by a PCA-based A/B
+    compartment analysis on a sparse, normalized, single chromosome contact map.
+    The results are two vectors whose values (negative or positive) should
+    presumably correlate with the presence of 'active' vs. 'inert' chromatin.
+
+    Parameters
+    ----------
+    M : array_like
+        The input, normalized contact map. Must be a single chromosome. Values
+        are assumed to be only the upper triangle of a symmetric matrix.
+    normalize : bool
+        Whether to normalize the matrix beforehand.
+    plot_dir : directory
+        Directory to save plot. Required if none given, do not build plot.
+    circular : bool
+        Either the matrix is circualr or not.
+    antidiagonal : True
+        Either there is an antidiagonal on the matrix or not. This is still in
+        development.
+
+    Returns
+    -------
+    numpy.ndarray:
+        An array containing the first principal component.
+    numpy.ndarray:
+        An array containing the second principal component.
+
+    TODO: Adapt detrending to circular matrix ? Is it really necessary ?
+    TODO: Detrending antidiagonal, make sure to center on the antidiagonal.
+    """
+
+    # Make matrix symetric (in case of upper triangle)
+    M = M.tocsr()
+    M = get_symmetric(M)
+
+    # Normalize the matrix
+    if normalize:
+        M = hcs.normalize_sparse(M, norm="SCN")
+    M = M.tocoo()
+    n = M.shape[0]
+
+    # Detrend by the distance law
+    dist_vals = np.array([np.average(M.diagonal(j)) for j in range(n)])
+    M.data = M.data / dist_vals[abs(M.row - M.col)]
+
+    # Detrend the antidiagonal
+    if antidiagonal:
+        M = np.rot90(M.todense())
+        dist_vals = np.array([np.average(M.diagonal(j)) for j in range(n)])
+        M = sp.coo_matrix(M)
+        M.data = np.log2(M.data / dist_vals[abs(M.row - M.col)])
+        M = np.rot90(M.todense()).T
+        M = sp.coo_matrix(M)
+
+    # Plot detrend matrix
+    if plot_dir is not None:
+        detrend_map_file = os.path.join(plot_dir, "detrend_map.png")
+        bcp.contact_map(
+            M.toarray(),
+            dpi=200,
+            cmap="Reds",
+            out_file=detrend_map_file,
+            title="Detrend contact map",
+        )
+
+    # Compute correlation matrix on full matrix
+    M = M.tocsr()
+    M = hcs.corrcoef_sparse(M)
+    M[np.isnan(M)] = 0.0
+
+    # Plot correlation matrix
+    if plot_dir is not None:
+        correlation_map_file = os.path.join(plot_dir, "correlation_map.png")
+        bcp.map_ratio(
+            M,
+            dpi=200,
+            cmap="seismic",
+            lim=1,
+            out_file=correlation_map_file,
+            ratio=True,
+            title="Correlation contact map",
+        )
+
+    # Extract eigen vectors and eigen values
+    [eigen_vals, pr_comp] = sl.eig(M)
+
+    return pr_comp[:, 0], pr_comp[:, 1]
 
 
 def compute_hic_signal(

@@ -9,112 +9,12 @@ Functions:
 
 
 import bacchus.hic as bch
-import bacchus.plot as bcp
-import hicstuff.hicstuff as hcs
+import copy
 import numpy as np
 import os
 import scipy.signal as ss
 import scipy.sparse as sp
-import scipy.linalg as sl
 from typing import List, Optional, Tuple
-
-
-def compartments_sparse(
-    M: "scipy.sparse.cr_matrix",
-    normalize: bool = True,
-    plot_dir: Optional[str] = None,
-    circular: bool = True,
-    antidiagonal: bool = False,
-) -> Tuple["numpy.ndarray"]:
-    """A/B compartment analysis
-
-    Performs a detrending of the power law followed by a PCA-based A/B
-    compartment analysis on a sparse, normalized, single chromosome contact map.
-    The results are two vectors whose values (negative or positive) should
-    presumably correlate with the presence of 'active' vs. 'inert' chromatin.
-
-    Parameters
-    ----------
-    M : array_like
-        The input, normalized contact map. Must be a single chromosome. Values
-        are assumed to be only the upper triangle of a symmetric matrix.
-    normalize : bool
-        Whether to normalize the matrix beforehand.
-    plot_dir : directory
-        Directory to save plot. Required if none given, do not build plot.
-    circular : bool
-        Either the matrix is circualr or not.
-    antidiagonal : True
-        Either there is an antidiagonal on the matrix or not. This is still in
-        development.
-
-    Returns
-    -------
-    numpy.ndarray:
-        An array containing the first principal component.
-    numpy.ndarray:
-        An array containing the second principal component.
-
-    TODO: Adapt detrending to circular matrix ? Is it really necessary ?
-    TODO: Detrending antidiagonal, make sure to center on the antidiagonal.
-    """
-
-    # Make matrix symetric (in case of upper triangle)
-    M = M.tocsr()
-    M = bch.get_symmetric(M)
-
-    # Normalize the matrix
-    if normalize:
-        M = hcs.normalize_sparse(M, norm="SCN")
-    M = M.tocoo()
-    n = M.shape[0]
-
-    # Detrend by the distance law
-    dist_vals = np.array([np.average(M.diagonal(j)) for j in range(n)])
-    M.data = M.data / dist_vals[abs(M.row - M.col)]
-
-    # Detrend the antidiagonal
-    if antidiagonal:
-        M = np.rot90(M.todense())
-        dist_vals = np.array([np.average(M.diagonal(j)) for j in range(n)])
-        M = sp.coo_matrix(M)
-        M.data = np.log2(M.data / dist_vals[abs(M.row - M.col)])
-        M = np.rot90(M.todense()).T
-        M = sp.coo_matrix(M)
-
-    # Plot detrend matrix
-    if plot_dir is not None:
-        detrend_map_file = os.path.join(plot_dir, "detrend_map.png")
-        bcp.map(
-            M.toarray(),
-            dpi=200,
-            cmap="Reds",
-            out_file=detrend_map_file,
-            title="Detrend contact map",
-        )
-
-    # Compute correlation matrix on full matrix
-    M = M.tocsr()
-    M = hcs.corrcoef_sparse(M)
-    M[np.isnan(M)] = 0.0
-
-    # Plot correlation matrix
-    if plot_dir is not None:
-        correlation_map_file = os.path.join(plot_dir, "correlation_map.png")
-        bcp.map_ratio(
-            M,
-            dpi=200,
-            cmap="seismic",
-            lim=1,
-            out_file=correlation_map_file,
-            ratio=True,
-            title="Correlation contact map",
-        )
-
-    # Extract eigen vectors and eigen values
-    [eigen_vals, pr_comp] = sl.eig(M)
-
-    return pr_comp[:, 0], pr_comp[:, 1]
 
 
 def get_relative_insulation(M: "numpy.ndarray", window: int, s: int) -> float:
@@ -169,7 +69,7 @@ def get_ri_score(M: "numpy.ndarray", list_w: List[int]) -> "numpy.ndarray":
     """
     # Compute size of M and prepare the vector.
     n = len(M)
-    relative_insulation_score = np.zeros(n)
+    ri_score = np.zeros(n)
     max_w = np.max(list_w)
     len_w = len(list_w)
 
@@ -182,9 +82,7 @@ def get_ri_score(M: "numpy.ndarray", list_w: List[int]) -> "numpy.ndarray":
             # matrix coordinates)
             pos = s + max_w - w
             # Compute the average relative insulation score
-            relative_insulation_score[s] += (
-                get_relative_insulation(M, w, pos) / len_w
-            )
+            ri_score[s] += get_relative_insulation(M, w, pos) / len_w
     return ri_score
 
 
@@ -285,10 +183,10 @@ def detect_final_borders(
         relative insulation score.
     """
     # Detect the peaks.
-    peaks = ss.find_peaks(lri)[0]
+    peaks = ss.find_peaks(lri_score)[0]
 
     # Define a cutoff as the median plus one time the standard deviation.
-    cutoff = np.median(lri) + np.std(lri)
+    cutoff = np.nanmedian(lri_score)  # + np.nanstd(lri_score)
 
     # Append peaks in final borders if there are bigger than the cutoff and far
     # enough from each other.
@@ -296,18 +194,18 @@ def detect_final_borders(
     previous_border = -np.inf
     for i in peaks:
         # Check that the peak is relevant.
-        if lri[i] >= cutoff:
+        if lri_score[i] >= cutoff:
             # Check if the peak is not part of a bigger peak. Keep only the
             # biggest peak if there are two closed peaks.
             if i - previous_border < min_dist:
-                if lri[i] > lri[previous_border]:
-                    final_borders[-1] = i
-                    previous_border = i
+                if lri_score[i] > lri_score[previous_border]:
+                    if previous_border == 716:
+                        final_borders[-1] = i
             else:
                 final_borders.append(i)
-            previous_border = i
+                previous_border = i
 
-    return final_borders
+    return final_borders, peaks
 
 
 def get_insulation_score(
@@ -338,7 +236,7 @@ def get_insulation_score(
     matrix = copy.copy(M)
 
     # Detect the white lines on the matrix.
-    mask = mask_white_line(matrix)
+    mask = bch.mask_white_line(matrix)
 
     # Change white lines in values close to 0 fro the correlation.
     matrix[mask, :] = np.random.sample(matrix.shape[0]) / 10 ** 6
@@ -350,12 +248,12 @@ def get_insulation_score(
     matrix[:, mask] = np.nan
 
     # Get the realtive insulation curev on the correlation matrix.
-    ri = get_relative_insulation_curve(matrix, list_w)
-    lri, _ = compute_lri(ri)
+    ri = get_ri_score(matrix, list_w)
+    lri, _ = get_lri_score(ri)
 
     # Compute the final borders.
-    final_borders = detect_final_borders(lri, list_w)
-    return final_borders, lri
+    final_borders, peaks = detect_final_borders(lri, list_w[1])
+    return final_borders, lri, peaks
 
 
 ## TODO
