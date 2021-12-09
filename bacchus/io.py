@@ -10,6 +10,7 @@ Functions:
 """
 
 
+import bacchus.hic as bch
 import hicstuff.hicstuff as hcs
 import hicstuff.io as hio
 import numpy as np
@@ -125,7 +126,7 @@ def build_map(
     if normalize:
         M = hcs.normalize_sparse(M, norm="ICE", n_mad=10)
     # Do the symetrics.
-    M = sym(M)
+    M = bch.get_symmetric(M)
     # Transform to dense matrix.
     M = M.toarray()
     return M

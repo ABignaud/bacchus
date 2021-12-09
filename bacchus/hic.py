@@ -7,10 +7,10 @@ from the HiC contact map.
 Functions:
     - compute_hic_signal
     - get_win_density
-    - is_sym
+    - is_symmetric
     - map_extend
     - mask_white_line
-    - sym
+    - get_symmetric
 """
 
 
@@ -163,7 +163,7 @@ def get_win_density(
     return density
 
 
-def is_sym(M: "scipy.sparse.csr_matrix") -> bool:
+def is_symmetric(M: "scipy.sparse.csr_matrix") -> bool:
     """Test if a matrix is symmetric, i.e. is the transposed matrix is the same.
 
     Parameters
@@ -176,7 +176,7 @@ def is_sym(M: "scipy.sparse.csr_matrix") -> bool:
     bool:
         Either the matrix is symetric or not
     """
-    return np.all(M == M.T)
+    return (abs(M - M.T) > 1e-10).nnz == 0
 
 
 def map_extend(M: "numpy.ndarray", s: int) -> "numpy.ndarray":
@@ -250,7 +250,7 @@ def mask_white_line(
     return bad_bins
 
 
-def sym(M: "scipy.sparse.csr_matrix") -> "scipy.sparse.csr_matrix":
+def get_symmetric(M: "scipy.sparse.csr_matrix") -> "scipy.sparse.csr_matrix":
     """Function to set the symmetric of a triangular matrix. Do nothing if the
     matrix is already triangular.
 
@@ -265,7 +265,7 @@ def sym(M: "scipy.sparse.csr_matrix") -> "scipy.sparse.csr_matrix":
         matrix symetrized
     """
     # Test whether it's already symetric or not.
-    if not is_sym(M):
+    if not is_symmetric(M):
         M = M + M.T
         # Divide the diagonal by 2 as we add it twice.
         M.setdiag(M.diagonal() / 2)
