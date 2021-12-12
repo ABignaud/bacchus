@@ -53,7 +53,7 @@ def compartments_sparse(
         Directory to save plot if one given.
     circular : bool
         Either the matrix is circualr or not.
-    antidiagonal : True
+    antidiagonal : bool
         Either there is an antidiagonal on the matrix or not. This is still in
         development.
 
@@ -160,7 +160,7 @@ def compute_hic_signal(
 
 def corr_matrix_sparse(
     M: "scipy.sparse.csr_matrix",
-    detrend: bool = True,
+    detrend: bool = False,
     normalize: bool = False,
     antidiagonal: bool = False,
     plot_dir: Optional[str] = None,
@@ -172,9 +172,9 @@ def corr_matrix_sparse(
     M : scipy.sparse.csr_matrix
         The input, normalized contact map. Must be a single chromosome. Values
         are assumed to be only the upper triangle of a symmetric matrix.
-    normalize : boolean
+    normalize : bool
         If enables normalize the matrix first. [Default: False].
-    antidiagonal : True
+    antidiagonal : bool
         Either there is an antidiagonal on the matrix or not. This is still in
         development. If enables, it will also detrend the antidiagonal.
     plot_dir : directory
@@ -182,12 +182,21 @@ def corr_matrix_sparse(
 
     Returns
     -------
-    M : scipy.sparse.csr_matrix
+    scipy.sparse.csr_matrix:
         The correlation matrix from the detrended matrix.
     """
+    # Make matrix symetric (in case of upper triangle)
+    M = get_symmetric(M)
+
+    # Normalize the matrix
+    if normalize:
+        M = hcs.normalize_sparse(M, norm="SCN")
+
     # Detrend the matrix.
     if detrend:
-        M = detrend_matrix_sparse(M, normalize, antidiagonal, plot_dir)
+        M = detrend_matrix_sparse(
+            M, normalize=False, antidiagonal=antidiagonal, plot_dir=plot_dir
+        )
 
     # Compute the corelation coeficient matrix
     M = hcs.corrcoef_sparse(M)
@@ -221,9 +230,9 @@ def detrend_matrix_sparse(
     M : scipy.sparse.csr_matrix
         The input, normalized contact map. Must be a single chromosome. Values
         are assumed to be only the upper triangle of a symmetric matrix.
-    normalize : boolean
+    normalize : bool
         If enables normalize the matrix first. [Default: False].
-    antidiagonal : True
+    antidiagonal : bool
         Either there is an antidiagonal on the matrix or not. This is still in
         development. If enables, it will also detrend the antidiagonal.
     plot_dir : directory
@@ -231,11 +240,10 @@ def detrend_matrix_sparse(
 
     Returns
     -------
-    M : scipy.sparse.csr_matrix
+    scipy.sparse.csr_matrix:
         The detrended matrix.
     """
     # Make matrix symetric (in case of upper triangle)
-    M = M.tocsr()
     M = get_symmetric(M)
 
     # Normalize the matrix
