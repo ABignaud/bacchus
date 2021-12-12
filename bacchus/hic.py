@@ -5,7 +5,10 @@
 from the HiC contact map.
 
 Functions:
+    - compartments_sparse
     - compute_hic_signal
+    - corr_matrix_sparse
+    - detrend_matrix_sparse
     - get_win_density
     - is_symmetric
     - map_extend
@@ -26,7 +29,7 @@ from typing import Optional, Tuple
 
 
 def compartments_sparse(
-    M: "scipy.sparse.cr_matrix",
+    M: "scipy.sparse.csr_matrix",
     normalize: bool = True,
     plot_dir: Optional[str] = None,
     circular: bool = True,
@@ -41,13 +44,13 @@ def compartments_sparse(
 
     Parameters
     ----------
-    M : array_like
+    M : scipy.sparse.csr_matrix
         The input, normalized contact map. Must be a single chromosome. Values
         are assumed to be only the upper triangle of a symmetric matrix.
     normalize : bool
         Whether to normalize the matrix beforehand.
     plot_dir : directory
-        Directory to save plot. Required if none given, do not build plot.
+        Directory to save plot if one given.
     circular : bool
         Either the matrix is circualr or not.
     antidiagonal : True
@@ -64,58 +67,14 @@ def compartments_sparse(
     TODO: Adapt detrending to circular matrix ? Is it really necessary ?
     TODO: Detrending antidiagonal, make sure to center on the antidiagonal.
     """
-
-    # Make matrix symetric (in case of upper triangle)
-    M = M.tocsr()
-    M = get_symmetric(M)
-
-    # Normalize the matrix
-    if normalize:
-        M = hcs.normalize_sparse(M, norm="SCN")
-    M = M.tocoo()
-    n = M.shape[0]
-
-    # Detrend by the distance law
-    dist_vals = np.array([np.average(M.diagonal(j)) for j in range(n)])
-    M.data = M.data / dist_vals[abs(M.row - M.col)]
-
-    # Detrend the antidiagonal
-    if antidiagonal:
-        M = np.rot90(M.todense())
-        dist_vals = np.array([np.average(M.diagonal(j)) for j in range(n)])
-        M = sp.coo_matrix(M)
-        M.data = np.log2(M.data / dist_vals[abs(M.row - M.col)])
-        M = np.rot90(M.todense()).T
-        M = sp.coo_matrix(M)
-
-    # Plot detrend matrix
-    if plot_dir is not None:
-        detrend_map_file = os.path.join(plot_dir, "detrend_map.png")
-        bcp.contact_map(
-            M.toarray(),
-            dpi=200,
-            cmap="Reds",
-            out_file=detrend_map_file,
-            title="Detrend contact map",
-        )
-
-    # Compute correlation matrix on full matrix
-    M = M.tocsr()
-    M = hcs.corrcoef_sparse(M)
-    M[np.isnan(M)] = 0.0
-
-    # Plot correlation matrix
-    if plot_dir is not None:
-        correlation_map_file = os.path.join(plot_dir, "correlation_map.png")
-        bcp.map_ratio(
-            M,
-            dpi=200,
-            cmap="seismic",
-            lim=1,
-            out_file=correlation_map_file,
-            ratio=True,
-            title="Correlation contact map",
-        )
+    # Detrend and compute correlation matrix on full matrix
+    M = corr_matrix_sparse(
+        M,
+        detrend=True,
+        normalize=normalize,
+        antidiagonal=antidiagonal,
+        plot_dir=plot_dir,
+    )
 
     # Extract eigen vectors and eigen values
     [eigen_vals, pr_comp] = sl.eig(M)
@@ -197,6 +156,118 @@ def compute_hic_signal(
         else:
             values[i] = np.nansum(M[i - stop : i - start, i + start : i + stop])
     return values
+
+
+def corr_matrix_sparse(
+    M: "scipy.sparse.csr_matrix",
+    detrend: bool = True,
+    normalize: bool = False,
+    antidiagonal: bool = False,
+    plot_dir: Optional[str] = None,
+) -> "scipy.sparse.csr_matrix":
+    """Function to compute the correlation matrix from a sparse matrix.
+
+    Parameters
+    ----------
+    M : scipy.sparse.csr_matrix
+        The input, normalized contact map. Must be a single chromosome. Values
+        are assumed to be only the upper triangle of a symmetric matrix.
+    normalize : boolean
+        If enables normalize the matrix first. [Default: False].
+    antidiagonal : True
+        Either there is an antidiagonal on the matrix or not. This is still in
+        development. If enables, it will also detrend the antidiagonal.
+    plot_dir : directory
+        Directory to save plot if one given.s
+
+    Returns
+    -------
+    M : scipy.sparse.csr_matrix
+        The correlation matrix from the detrended matrix.
+    """
+    # Detrend the matrix.
+    if detrend:
+        M = detrend_matrix_sparse(M, normalize, antidiagonal, plot_dir)
+
+    # Compute the corelation coeficient matrix
+    M = hcs.corrcoef_sparse(M)
+    M[np.isnan(M)] = 0.0
+
+    # Plot correlation matrix.
+    if plot_dir is not None:
+        correlation_map_file = os.path.join(plot_dir, "correlation_map.png")
+        bcp.map_ratio(
+            M,
+            dpi=200,
+            cmap="seismic",
+            lim=1,
+            out_file=correlation_map_file,
+            ratio=True,
+            title="Correlation contact map",
+        )
+    return M
+
+
+def detrend_matrix_sparse(
+    M: "scipy.sparse.csr_matrix",
+    normalize: bool = False,
+    antidiagonal: bool = False,
+    plot_dir: Optional[str] = None,
+) -> "scipy.sparse.csr_matrix":
+    """Function to compute the correlation matrix from a sparse matrix.
+
+    Parameters
+    ----------
+    M : scipy.sparse.csr_matrix
+        The input, normalized contact map. Must be a single chromosome. Values
+        are assumed to be only the upper triangle of a symmetric matrix.
+    normalize : boolean
+        If enables normalize the matrix first. [Default: False].
+    antidiagonal : True
+        Either there is an antidiagonal on the matrix or not. This is still in
+        development. If enables, it will also detrend the antidiagonal.
+    plot_dir : directory
+        Directory to save plot if one given.
+
+    Returns
+    -------
+    M : scipy.sparse.csr_matrix
+        The detrended matrix.
+    """
+    # Make matrix symetric (in case of upper triangle)
+    M = M.tocsr()
+    M = get_symmetric(M)
+
+    # Normalize the matrix
+    if normalize:
+        M = hcs.normalize_sparse(M, norm="SCN")
+    M = M.tocoo()
+    n = M.shape[0]
+
+    # Detrend by the distance law
+    dist_vals = np.array([np.average(M.diagonal(j)) for j in range(n)])
+    M.data = M.data / dist_vals[abs(M.row - M.col)]
+
+    # Detrend the antidiagonal
+    if antidiagonal:
+        M = np.rot90(M.todense())
+        dist_vals = np.array([np.average(M.diagonal(j)) for j in range(n)])
+        M = sp.coo_matrix(M)
+        M.data = np.log2(M.data / dist_vals[abs(M.row - M.col)])
+        M = np.rot90(M.todense()).T
+        M = sp.coo_matrix(M)
+
+    # Plot detrend matrix
+    if plot_dir is not None:
+        detrend_map_file = os.path.join(plot_dir, "detrend_map.png")
+        bcp.contact_map(
+            M.toarray(),
+            dpi=200,
+            cmap="Reds",
+            out_file=detrend_map_file,
+            title="Detrend contact map",
+        )
+    return M.tocsr()
 
 
 def get_win_density(

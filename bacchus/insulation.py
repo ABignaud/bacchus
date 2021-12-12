@@ -199,8 +199,7 @@ def detect_final_borders(
             # biggest peak if there are two closed peaks.
             if i - previous_border < min_dist:
                 if lri_score[i] > lri_score[previous_border]:
-                    if previous_border == 716:
-                        final_borders[-1] = i
+                    final_borders[-1] = i
             else:
                 final_borders.append(i)
                 previous_border = i
@@ -252,8 +251,8 @@ def get_insulation_score(
     lri, _ = get_lri_score(ri)
 
     # Compute the final borders.
-    final_borders, peaks = detect_final_borders(lri, list_w[1])
-    return final_borders, lri, peaks
+    final_borders, _ = detect_final_borders(lri, list_w[1])
+    return final_borders, lri
 
 
 ## TODO

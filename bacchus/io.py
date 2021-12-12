@@ -167,3 +167,31 @@ def extract_big_wig(
     if ztransform:
         (values - np.nanmean(values)) / np.nanstd(values)
     return values
+
+
+def generates_frags(n: int, binning: int) -> "pandas.DataFrame":
+    """Generates fragments pandas dataframe for a binned matrix of size n.
+
+    Parameters
+    ----------
+    n : int
+        Size of the binned matrix.
+    binning : int
+        Size in base pair of one bin.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Table of the binned fragments.
+    """
+    # Create the dataframe.
+    frags = {
+        "id": np.arange(1, n + 1),
+        "chrom": np.repeat("chr01", n),
+        "start_pos": np.arange(0, n * binning, binning),
+        "end_pos": np.arange(binning, (n + 1) * binning, binning),
+        "size": np.repeat(binning, n),
+        "gc_content": np.repeat(0, n),
+    }
+    frags = pd.DataFrame(frags)
+    return frags
