@@ -24,7 +24,7 @@ def directional_index(
     plot_dir: Optional[str] = None,
 ) -> List[float]:
     """Function to compute the directional index from a sparse matrix. The
-    directional index is defined for one bin as the t-value between the left and 
+    directional index is defined for one bin as the t-value between the left and
     right vectors of contacts of the bin until a given range.
 
     Parameters
@@ -35,7 +35,7 @@ def directional_index(
     window_size : int
         Size of the window to consider to compute the directional index.
     corr : bool
-        Whether to compute the correlation matrix or not. If False you should 
+        Whether to compute the correlation matrix or not. If False you should
         have given the correlation matrix as input.
     normalize : bool
         If enables normalize the matrix first. [Default: False].
@@ -98,7 +98,7 @@ def di_borders(di: List[float]) -> List[float]:
     ----------
     di : numpy.ndarray
         List of the directional index computed for each bin.
-    
+
     Returns
     -------
     list of int:
@@ -109,7 +109,7 @@ def di_borders(di: List[float]) -> List[float]:
     borders = []
     if di[-1] < -1.96:
         negative = True
-    else: 
+    else:
         negative = False
 
     # Iterates on the DI values

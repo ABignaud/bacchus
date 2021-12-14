@@ -192,9 +192,16 @@ def detect_final_borders(
     # enough from each other.
     final_borders = []
     previous_border = -np.inf
+    n = len(lri_score)
     for i in peaks:
-        # Check that the peak is relevant.
-        if lri_score[i] >= cutoff:
+        # Check if the peak is relevant.
+        k1 = i - 2 if i - 2 >= 0 else n - i - 2
+        k2 = i + 2 if i + 2 < n else i + 2 - n
+        if (
+            lri_score[i] >= cutoff
+            and lri_score[i] > lri_score[k1]
+            and lri_score[i] > lri_score[k2]
+        ):
             # Check if the peak is not part of a bigger peak. Keep only the
             # biggest peak if there are two closed peaks.
             if i - previous_border < min_dist:
