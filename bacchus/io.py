@@ -166,7 +166,7 @@ def extract_big_wig(
             )
         values = binned_values
     if ztransform:
-        (values - np.nanmean(values)) / np.nanstd(values)
+        values = (values - np.nanmean(values)) / np.nanstd(values)
     return values
 
 

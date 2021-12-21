@@ -279,7 +279,7 @@ def contact_map(
 
     # Savefig
     if out_file is not None:
-        plt.savefig(out_file, dpi=dpi, bbox_inches = 'tight')
+        plt.savefig(out_file, dpi=dpi, bbox_inches="tight")
 
 
 def contact_map_ratio(

@@ -10,6 +10,7 @@ Functions:
     - corr_matrix_sparse
     - detrend_matrix_sparse
     - get_win_density
+    - interpolate_white_lines
     - is_symmetric
     - map_extend
     - mask_white_line
@@ -20,6 +21,7 @@ Functions:
 import bacchus.plot as bcp
 import chromosight.utils.detection as cud
 import chromosight.utils.preprocessing as cup
+import copy
 import hicstuff.hicstuff as hcs
 import numpy as np
 import scipy.linalg as sl
@@ -357,6 +359,78 @@ def is_symmetric(M: "scipy.sparse.csr_matrix") -> bool:
         Either the matrix is symetric or not
     """
     return (abs(M - M.T) > 1e-10).nnz == 0
+
+
+def interpolate_white_lines(M: "numpy.ndarray") -> "numpy.ndarray":
+    """Function to interpolate the white lines in a matrix. It will interpolate
+    only single white lines. The interpolation is based on the local p(s). (The
+    four closest points on the same diagonals).
+
+    Parameters
+    ----------
+    M : numpy.array
+        Matrix where the white lines needs tob interpolate.
+
+    Returns
+    -------
+    numpy.array:
+        Matrix with interpolated white lines.
+    """
+    # Size of the matrix.
+    N = copy.copy(M)
+    n = len(N)
+    # Detect white lines.
+    zeros = mask_white_line(N)
+
+    # Detect white lines shifted of one to keep only single white lines.
+    N2 = map_extend(N, 1)
+    mask = (
+        np.sum(
+            np.logical_or(
+                np.logical_and((N2 == 0)[:-2, :-2], N == 0),
+                np.logical_and((N2 == 0)[2:, 2:], N == 0),
+            ),
+            axis=1,
+        )
+        == len(N)
+    )
+
+    # Put values to nan to avoid to use them as mean.
+    M[zeros] = np.nan
+    M[:, zeros] = np.nan
+
+    
+    for k in zeros:
+        # Make the interpolation for rows.
+        for j in range(len(N)):
+            i = k
+            # Border case not took into account...
+            if i <= n - 3 and j <= n - 3 and i >= 2 and j >= 2:
+                N[i, j] = np.nanmean(
+                    [
+                        M[i - 2, j - 2],
+                        M[i - 1, j - 1],
+                        M[i + 1, j + 1],
+                        M[i + 2, j + 2],
+                    ]
+                )
+        # Make the interpolation for columns.
+        for i in range(len(N)):
+            j = k
+            # Border case not took into account...
+            if i <= n - 3 and j <= n - 3 and i >= 2 and j >= 2:
+                N[i, j] = np.nanmean(
+                    [
+                        M[i - 2, j - 2],
+                        M[i - 1, j - 1],
+                        M[i + 1, j + 1],
+                        M[i + 2, j + 2],
+                    ]
+                )
+    # Put back the mask on the values which have multiple white lines.
+    N[mask] = 0
+    N[:, mask] = 0
+    return N
 
 
 def map_extend(M: "numpy.ndarray", s: int) -> "numpy.ndarray":
