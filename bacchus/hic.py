@@ -9,12 +9,12 @@ Functions:
     - compute_hic_signal
     - corr_matrix_sparse
     - detrend_matrix_sparse
+    - get_symmetric
     - get_win_density
     - interpolate_white_lines
     - is_symmetric
     - map_extend
     - mask_white_line
-    - get_symmetric
 """
 
 
@@ -280,6 +280,30 @@ def detrend_matrix_sparse(
     return M.tocsr()
 
 
+def get_symmetric(M: "scipy.sparse.csr_matrix") -> "scipy.sparse.csr_matrix":
+    """Function to set the symmetric of a triangular matrix. Do nothing if the
+    matrix is already triangular.
+
+    Parameters
+    ----------
+    M : scipy.sparse.csr_matrix
+        matrix to symetrize.
+
+    Returns
+    -------
+    scipy.sparse.csr_matrix:
+        matrix symetrized
+    """
+    # Test whether it's already symetric or not.
+    if not is_symmetric(M):
+        M = M + M.T
+        # Divide the diagonal by 2 as we add it twice.
+        M.setdiag(M.diagonal() / 2)
+        # Remove zeros from teh sparse matrix
+        M.eliminate_zeros()
+    return M
+
+
 def get_win_density(
     mat: "scipy.sparse.csr_matrix", win_size: int = 3, sym_upper: bool = False
 ) -> "scipy.sparse.csr_matrix":
@@ -399,7 +423,6 @@ def interpolate_white_lines(M: "numpy.ndarray") -> "numpy.ndarray":
     M[zeros] = np.nan
     M[:, zeros] = np.nan
 
-    
     for k in zeros:
         # Make the interpolation for rows.
         for j in range(len(N)):
@@ -502,27 +525,3 @@ def mask_white_line(
     bad_bins = np.flatnonzero(sum_bins >= detect_threshold)
 
     return bad_bins
-
-
-def get_symmetric(M: "scipy.sparse.csr_matrix") -> "scipy.sparse.csr_matrix":
-    """Function to set the symmetric of a triangular matrix. Do nothing if the
-    matrix is already triangular.
-
-    Parameters
-    ----------
-    M : scipy.sparse.csr_matrix
-        matrix to symetrize.
-
-    Returns
-    -------
-    scipy.sparse.csr_matrix:
-        matrix symetrized
-    """
-    # Test whether it's already symetric or not.
-    if not is_symmetric(M):
-        M = M + M.T
-        # Divide the diagonal by 2 as we add it twice.
-        M.setdiag(M.diagonal() / 2)
-        # Remove zeros from teh sparse matrix
-        M.eliminate_zeros()
-    return M

@@ -86,7 +86,7 @@ def get_ri_score(M: "numpy.ndarray", list_w: List[int]) -> "numpy.ndarray":
     return ri_score
 
 
-def get_lri_score(
+def get_local_score(
     ri_score: "numpy.ndarray",
 ) -> Tuple["numpy.ndarray", List["numpy.ndarray"]]:
     """As the relative insulation score depends on the matrix and insulation
@@ -255,7 +255,7 @@ def get_insulation_score(
 
     # Get the realtive insulation curev on the correlation matrix.
     ri = get_ri_score(matrix, list_w)
-    lri, _ = get_lri_score(ri)
+    lri, _ = get_local_score(ri)
 
     # Compute the final borders.
     final_borders, _ = detect_final_borders(lri, list_w[1])
