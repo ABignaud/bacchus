@@ -21,7 +21,9 @@ Function:
 
 import bacchus.hic as bch
 import bacchus.insulation as bci
+import copy
 import numpy as np
+import scipy.sparse as sp
 from typing import List, Optional, Tuple
 
 
@@ -124,8 +126,10 @@ def build_kernel(size: int) -> "numpy.ndarray":
             ax1 = abs(2 * size - i - j) / (2 * size)
             # Let 0 in the diagonal and do a pseudo gaussian kernel based on
             # these axis.
-            if j != i:
-                kernel[i, j] = np.exp(-1 / 4 * ((ax0 + ax1)) ** 2)
+            # if j != i:
+            kernel[i, j] = (1 / np.sqrt(2)) * np.exp(
+                -1 / 2 * (1 / 2 * (ax0 + ax1)) ** 2
+            )
     return kernel
 
 
@@ -147,10 +151,13 @@ def compute_blob_score(
     -------
     numpy.ndarray:
         Convolution local score vector.
-    """
+    """ 
     # Extend matrix for border effects and remove white lines.
     N = bch.map_extend(M, size)
+    N[np.isnan(N)] = 0
     mask = bch.mask_white_line(N, n_mads)
+    
+    # Transform into white lines into nan.
     N[mask] = np.nan
     N[:, mask] = np.nan
 

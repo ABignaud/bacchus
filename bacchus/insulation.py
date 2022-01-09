@@ -4,7 +4,11 @@
 """General functions to compute borders and insulation score.
 
 Functions:
-    - compartments_sparse
+    - get_relative_insulation
+    - get_ri_score
+    - get_local_score
+    - detect_final_borders
+    - get_insulation_score
 """
 
 

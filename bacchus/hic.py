@@ -87,8 +87,8 @@ def compartments_sparse(
 def compute_hic_signal(
     M: "numpy.ndarray",
     binning: Optional[int] = None,
-    start: Optional[int] = None,
-    stop: Optional[int] = None,
+    start: int = 1,
+    stop: int = 2,
 ) -> "numpy.ndarray":
     """Compute the Hic signal of a dense matrix.
 
@@ -369,22 +369,6 @@ def get_win_density(
     return density
 
 
-def is_symmetric(M: "scipy.sparse.csr_matrix") -> bool:
-    """Test if a matrix is symmetric, i.e. is the transposed matrix is the same.
-
-    Parameters
-    ----------
-    M : scipy.sparse.csr_matrix
-        matrix to test if symetric.
-
-    Returns
-    -------
-    bool:
-        Either the matrix is symetric or not
-    """
-    return (abs(M - M.T) > 1e-10).nnz == 0
-
-
 def interpolate_white_lines(M: "numpy.ndarray") -> "numpy.ndarray":
     """Function to interpolate the white lines in a matrix. It will interpolate
     only single white lines. The interpolation is based on the local p(s). (The
@@ -403,8 +387,10 @@ def interpolate_white_lines(M: "numpy.ndarray") -> "numpy.ndarray":
     # Size of the matrix.
     N = copy.copy(M)
     n = len(N)
-    # Detect white lines.
+    # Detect white lines or not well covered lines.
     zeros = mask_white_line(N)
+    N[zeros] = 0
+    N[:, zeros] = 0
 
     # Detect white lines shifted of one to keep only single white lines.
     N2 = map_extend(N, 1)
@@ -454,6 +440,22 @@ def interpolate_white_lines(M: "numpy.ndarray") -> "numpy.ndarray":
     N[mask] = 0
     N[:, mask] = 0
     return N
+
+
+def is_symmetric(M: "scipy.sparse.csr_matrix") -> bool:
+    """Test if a matrix is symmetric, i.e. is the transposed matrix is the same.
+
+    Parameters
+    ----------
+    M : scipy.sparse.csr_matrix
+        matrix to test if symetric.
+
+    Returns
+    -------
+    bool:
+        Either the matrix is symetric or not
+    """
+    return (abs(M - M.T) > 1e-10).nnz == 0
 
 
 def map_extend(M: "numpy.ndarray", s: int) -> "numpy.ndarray":

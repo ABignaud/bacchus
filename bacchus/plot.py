@@ -284,7 +284,7 @@ def contact_map(
 
 def contact_map_ratio(
     mat1: "numpy.ndarray",
-    mat2: "numpy.ndarray",
+    mat2: Optional["numpy.ndarray"] = None,
     axis: str = "kb",
     binning: int = 1,
     cmap: str = "seisimic",
