@@ -151,12 +151,12 @@ def compute_blob_score(
     -------
     numpy.ndarray:
         Convolution local score vector.
-    """ 
+    """
     # Extend matrix for border effects and remove white lines.
     N = bch.map_extend(M, size)
     N[np.isnan(N)] = 0
     mask = bch.mask_white_line(N, n_mads)
-    
+
     # Transform into white lines into nan.
     N[mask] = np.nan
     N[:, mask] = np.nan

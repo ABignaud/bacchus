@@ -16,6 +16,7 @@ import hicstuff.io as hio
 import numpy as np
 import pandas as pd
 import pyBigWig
+from scipy.ndimage import gaussian_filter1d
 from typing import List, Optional, Tuple
 
 
@@ -133,7 +134,11 @@ def build_map(
 
 
 def extract_big_wig(
-    file: str, binning: Optional[int] = None, ztransform: bool = False
+    file: str,
+    binning: Optional[int] = None,
+    circular: bool = True,
+    sigma: Optional[int] = None,
+    ztransform: bool = False,
 ) -> "numpy.ndarray":
     """Function to extract big wig information. It considered that the file is
     bin at 1 base pair and it has only one chromosome. If binning is set it will
@@ -145,6 +150,10 @@ def extract_big_wig(
         Path to the BigWig file
     binning : int
         Binning size for the output tracks in bp.
+    circular : bool
+        If the genome is circular or not.
+    sigma : int
+        If one given will do a gaussian filter with this sigma value.
     ztransform : bool
         Whether to Z-transformed the track or not.
 
@@ -158,6 +167,14 @@ def extract_big_wig(
         length = tab.chroms()[name]
     values = tab.values(name, 0, length)
     values = np.array([0 if np.isnan(x) else x for x in values])
+    # Do a gaussian blur if sigma is given.
+    if sigma is not None:
+        # Define relevant mode according to the geometry of the genome.
+        if circular:
+            mode = "wrap" # abcd|abcd|abcd
+        else:
+            mode = "nearest" # aaaa|abcd|dddd
+        values = gaussian_filter1d(values, sigma=sigma, mode=mode)
     if binning is not None:
         binned_values = np.zeros(((length // binning) + 1))
         for i in range((length // binning) + 1):
