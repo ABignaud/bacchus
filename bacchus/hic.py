@@ -386,6 +386,7 @@ def interpolate_white_lines(M: "numpy.ndarray") -> "numpy.ndarray":
     """
     # Size of the matrix.
     N = copy.copy(M)
+    N_tmp = copy.copy(M)
     n = len(N)
     # Detect white lines or not well covered lines.
     zeros = mask_white_line(N)
@@ -406,8 +407,8 @@ def interpolate_white_lines(M: "numpy.ndarray") -> "numpy.ndarray":
     )
 
     # Put values to nan to avoid to use them as mean.
-    M[zeros] = np.nan
-    M[:, zeros] = np.nan
+    N_tmp[zeros] = np.nan
+    N_tmp[:, zeros] = np.nan
 
     for k in zeros:
         # Make the interpolation for rows.
@@ -417,10 +418,10 @@ def interpolate_white_lines(M: "numpy.ndarray") -> "numpy.ndarray":
             if i <= n - 3 and j <= n - 3 and i >= 2 and j >= 2:
                 N[i, j] = np.nanmean(
                     [
-                        M[i - 2, j - 2],
-                        M[i - 1, j - 1],
-                        M[i + 1, j + 1],
-                        M[i + 2, j + 2],
+                        N_tmp[i - 2, j - 2],
+                        N_tmp[i - 1, j - 1],
+                        N_tmp[i + 1, j + 1],
+                        N_tmp[i + 2, j + 2],
                     ]
                 )
         # Make the interpolation for columns.
@@ -430,10 +431,10 @@ def interpolate_white_lines(M: "numpy.ndarray") -> "numpy.ndarray":
             if i <= n - 3 and j <= n - 3 and i >= 2 and j >= 2:
                 N[i, j] = np.nanmean(
                     [
-                        M[i - 2, j - 2],
-                        M[i - 1, j - 1],
-                        M[i + 1, j + 1],
-                        M[i + 2, j + 2],
+                        N_tmp[i - 2, j - 2],
+                        N_tmp[i - 1, j - 1],
+                        N_tmp[i + 1, j + 1],
+                        N_tmp[i + 2, j + 2],
                     ]
                 )
     # Put back the mask on the values which have multiple white lines.
