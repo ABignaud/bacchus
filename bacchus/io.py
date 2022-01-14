@@ -171,9 +171,9 @@ def extract_big_wig(
     if sigma is not None:
         # Define relevant mode according to the geometry of the genome.
         if circular:
-            mode = "wrap" # abcd|abcd|abcd
+            mode = "wrap"  # abcd|abcd|abcd
         else:
-            mode = "nearest" # aaaa|abcd|dddd
+            mode = "nearest"  # aaaa|abcd|dddd
         values = gaussian_filter1d(values, sigma=sigma, mode=mode)
     if binning is not None:
         binned_values = np.zeros(((length // binning) + 1))
@@ -199,7 +199,7 @@ def generates_frags(n: int, binning: int) -> "pandas.DataFrame":
 
     Returns
     -------
-    pandas.DataFrame
+    pandas.DataFrame:
         Table of the binned fragments.
     """
     # Create the dataframe.
