@@ -395,8 +395,8 @@ def contact_map_ratio(
         plt.savefig(out_file, dpi=dpi)
 
 
-def hicreppy(
-    data: "numpy.ndarray", labels: Optional[List[str]], outfile: Optional[str]
+def hicreppy_plot(
+    data: "numpy.ndarray", labels: Optional[List[str]], out_file: Optional[str]
 ):
     """Function to plot the correlation matrix from hicreppy.
 
@@ -415,7 +415,6 @@ def hicreppy(
         labels = [str(x) for x in np.arange(1, len(data) + 1)]
 
     # Plot the correlation matrix with seaborn.
-    plt.subplots()
     sns.set(font_scale=1)
     ax = sns.clustermap(
         data=data,
@@ -432,8 +431,8 @@ def hicreppy(
     fig.tight_layout(rect=[0, 0, 1, 1], pad=2)
 
     # Save figure if an outfile is given.
-    if outfile is not None:
-        plt.savefig(outfile, dpi=100)
+    if out_file is not None:
+        plt.savefig(out_file, dpi=100)
 
 
 def parse_axis_str(axis: str) -> float:

@@ -21,13 +21,15 @@ Functions:
 import bacchus.plot as bcp
 import chromosight.utils.detection as cud
 import chromosight.utils.preprocessing as cup
+import cooler
 import copy
+import hicreppy.hicrep as hicrep
 import hicstuff.hicstuff as hcs
 import numpy as np
 import scipy.linalg as sl
 import scipy.sparse as sp
 import scipy.stats as st
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 
 def compartments_sparse(
@@ -278,6 +280,63 @@ def detrend_matrix_sparse(
             title="Detrend contact map",
         )
     return M.tocsr()
+
+
+def get_hicreppy(
+    matrix_list: List[str], subsample: int = 0, h: Optional[int] = None
+) -> "numpy.ndarray":
+    """Compute a correlation matrix using HiCreppy between HiC matrix. It needs
+    cooler files as input.
+
+    Parameters
+    ----------
+    matrix_list : list of int
+        List of path to cooler matrices.
+    subsample : int
+        Subsample values of the matrices. If 0 is given it will give a subsample
+        value of the smallest numbers of contacts of all matrices.
+    h : int
+        Value of the smoothing parameter h to use. Should be a positive integer.
+        By default use hicrep.htrain function to find the optimal value.
+
+    Returns
+    -------
+    numpy.ndarray:
+        Correlation matrix between HiC matrices based on HiCreppy correlation.
+    """
+    # Initiate the table.
+    N = len(matrix_list)
+    data = np.zeros((N, N))
+
+    # Search for minimal contacts map if no subsample value are given.
+    if subsample == 0:
+        subsample = np.inf
+        for cool_file in matrix_list:
+            subsample = int(
+                min(cooler.Cooler(cool_file).info["sum"], subsample)
+            )
+
+    # Compute the smoothing optimal parameters to used if none given.
+    if h is None:
+        h = 0
+        for i in range(N):
+            for j in range(i + 1, N):
+                M1 = cooler.Cooler(matrix_list[i])
+                M2 = cooler.Cooler(matrix_list[j])
+                h = max(h, hicrep.h_train(M1, M2, max_dist=200000, h_max=10))
+
+    # Compute Hicrep
+    for i in range(N):
+        data[i, i] = 1
+        for j in range(i + 1, N):
+            M1 = cooler.Cooler(matrix_list[i])
+            M2 = cooler.Cooler(matrix_list[j])
+            scc = hicrep.genome_scc(
+                M1, M2, max_dist=200000, h=h, subsample=subsample
+            )
+            data[i, j] = scc
+            data[j, i] = scc
+    return data
 
 
 def get_symmetric(M: "scipy.sparse.csr_matrix") -> "scipy.sparse.csr_matrix":
