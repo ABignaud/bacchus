@@ -287,7 +287,7 @@ def contact_map_ratio(
     mat2: Optional["numpy.ndarray"] = None,
     axis: str = "kb",
     binning: int = 1,
-    cmap: str = "seisimic",
+    cmap: str = "seismic",
     dpi: int = 300,
     end: int = 0,
     lim: float = 2,
@@ -352,7 +352,7 @@ def contact_map_ratio(
 
     # No end values given.
     if end == 0:
-        end = len(mat)
+        end = len(mat1)
 
     # Compute the matrices
     if ratio:
@@ -391,7 +391,7 @@ def contact_map_ratio(
     cbar.ax.tick_params(labelsize=16)
 
     # Savefig
-    if outfile is not None:
+    if out_file is not None:
         plt.savefig(out_file, dpi=dpi)
 
 
