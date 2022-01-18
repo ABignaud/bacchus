@@ -20,7 +20,7 @@ import seaborn as sns
 from typing import List, Optional
 
 
-def antidiagonal(
+def antidiagonal_plot(
     values: "numpy.ndarray",
     axis: str = "Mb",
     binning: int = 1,
@@ -43,11 +43,12 @@ def antidiagonal(
     dpi : int
         Final dpi of the plot.
     ori_pos : int
-        Position of the ori in base pair.
+        Position of the ori in base pair. Binning is necessary.
     out_file : str
-        Path to save th eplot if one given.
+        Path to save the plot if one given.
     pars_pos : list of int
-        List of the positions of the parS sites in base pair.
+        List of the positions of the parS sites in base pair. Ori position is
+        necessary.
     title : str
         Name of the plot if one given.
     """
@@ -59,31 +60,64 @@ def antidiagonal(
         axis = "bin"
 
     # Define figures.
-    fig, ax = plt.subplots(1, 1, figsize(4, 2), dpi=dpi)
+    fig, ax = plt.subplots(1, 1, figsize=(6, 3), dpi=dpi)
 
     # Define size of the vector and x axis. The 0.5 is added as we have twice
     # the numbers of bins.
     size = len(values)
-    x = np.arange(size // 2, -size // 2, -1) * binning * scaling_factor * 0.5
 
-    # If origin of replication position and parS sites positions are given it
-    # will dispalyed their positions.
-    if ori_pos is not None and pars_pos is not None:
-        for par_pos in pars:
-            par_pos_final = (par_pos - ori_pos) * scaling_factor
-            ax.axvline(
-                x=par_pos_final, linewidth=1, color="red", linestyle="dashed"
-            )
+    if ori_pos is not None and binning != 1:
+        # Build x axis centered at the origin
+        x = np.arange(-size // 2, size // 2) * binning * scaling_factor * 0.5
+        ax.axvline(
+            x=0, linewidth=1, color="black", linestyle="dashed", label="ori"
+        )
+        # Defined ori position at zero and reorder values accordingly.
+        ori_pos_val_coor = 2 * ori_pos // binning
+        if ori_pos_val_coor > size // 2:
+            start = ori_pos_val_coor - size // 2
+        else:
+            start = ori_pos_val_coor + size // 2
+        values = np.concatenate((values[start:], values[:start]))
+        # If parS positions given, correct them and display thier positions.
+        if pars_pos is not None:
+            for pars in pars_pos:
+                pars = (pars - ori_pos) * scaling_factor
+                if pars > (size // 4) * binning * scaling_factor:
+                    pars -= (size // 2) * binning * scaling_factor
+                elif pars < (-size // 4) * binning * scaling_factor:
+                    pars += (size // 2) * binning * scaling_factor
+                pars_line = ax.axvline(
+                    x=pars,
+                    linewidth=1,
+                    color="red",
+                    linestyle="dashed",
+                )
+            pars_line.set_label("parS")
+
+    else:
+        x = np.arange(size) * binning * scaling_factor * 0.5
+        # Display parS sites.
+        if pars_pos is not None:
+            for pars in pars_pos:
+                pars_line = ax.axvline(
+                    x=pars * scaling_factor,
+                    linewidth=1,
+                    color="red",
+                    linestyle="dashed",
+                )
+            pars_line.set_label("parS")
 
     # Plot the antidiagonals strength.
     ax.plot(x, values, linewidth=1, color="#1f78b4")
-    ax.axvline(x=0, linewidth=1, color="black", linestyle="dashed")
 
     # Legend
     ax.set_xlabel(f"Genomic coordinates {axis:s}", fontsize=16)
     ax.set_ylabel("Antidiagonal strength", fontsize=16)
     ax.tick_params(size=16)
-    if tiltle is not None:
+    if ori_pos is not None or pars_pos is not None:
+        ax.legend()
+    if title is not None:
         ax.set_title(title, size=18)
 
     # Savefig if necessary
@@ -151,39 +185,71 @@ def antidiagonal_scalogram(
         color = color * (len(values) // 12 + 1)
 
     # Define figures.
-    fig, ax = plt.subplots(1, 1, figsize(4, 2), dpi=dpi)
+    fig, ax = plt.subplots(1, 1, figsize=(10, 5), dpi=dpi)
 
     # Define size of the vector and x axis. The 0.5 is added as we have twice
     # the numbers of bins.
     size = len(values[0])
-    x = np.arange(size // 2, -size // 2, -1) * binning * scaling_factor * 0.5
 
-    # If origin of replication position and parS sites positions are given it
-    # will dispalyed their positions.
-    if ori_pos is not None and pars_pos is not None:
-        for par_pos in pars:
-            par_pos_final = (par_pos - ori_pos) * scaling_factor
-            ax.axvline(
-                x=par_pos_final, linewidth=1, color="red", linestyle="dashed"
-            )
+    if ori_pos is not None and binning != 1:
+        # Build x axis centered at the origin
+        x = np.arange(-size // 2, size // 2) * binning * scaling_factor * 0.5
+        ax.axvline(x=0, linewidth=1, color="black", linestyle="dashed")
+        # Defined ori position at zero and reorder values accordingly.
+        ori_pos_val_coor = 2 * ori_pos // binning
+        if ori_pos_val_coor > size // 2:
+            start = ori_pos_val_coor - size // 2
+        else:
+            start = ori_pos_val_coor + size // 2
+        # If parS positions given, correct them and display thier positions.
+        if pars_pos is not None:
+            for pars in pars_pos:
+                pars = (pars - ori_pos) * scaling_factor
+                if pars > (size // 4) * binning * scaling_factor:
+                    pars -= (size // 2) * binning * scaling_factor
+                elif pars < (-size // 4) * binning * scaling_factor:
+                    pars += (size // 2) * binning * scaling_factor
+                pars_line = ax.axvline(
+                    x=pars,
+                    linewidth=1,
+                    color="red",
+                    linestyle="dashed",
+                )
+            # pars_line.set_label("parS")
+
+    else:
+        x = np.arange(size) * binning * scaling_factor * 0.5
+        start = 0
+        # Display parS sites.
+        if pars_pos is not None:
+            for pars in pars_pos:
+                pars_line = ax.axvline(
+                    x=pars * scaling_factor,
+                    linewidth=1,
+                    color="red",
+                    linestyle="dashed",
+                )
+            # pars_line.set_label("parS")
 
     # Check labels:
     if labels is None:
         labels = np.zeros((len(values)))
-        legend = None
+        legend = False
+    else:
+        legend = True
 
     # Plot the antidiagonals strength.
     for i in range(len(values)):
-        ax.plot(x, values[i], linewidth=1, color=color[i], label=labels[i])
-    ax.axvline(x=0, linewidth=1, color="black", linestyle="dashed")
+        y = np.concatenate((values[i][start:], values[i][:start]))
+        ax.plot(x, y, linewidth=.7, color=color[i], label=labels[i])
 
     # Legend
     ax.set_xlabel(f"Genomic coordinates {axis:s}", fontsize=16)
     ax.set_ylabel("Antidiagonal strength", fontsize=16)
     ax.tick_params(size=16)
-    if tiltle is not None:
+    if title is not None:
         ax.set_title(title, size=18)
-    if legend is not None:
+    if legend:
         ax.legend(loc="upper right", fontsize=8)
 
     # Savefig if necessary
@@ -255,7 +321,7 @@ def contact_map(
         mat[start:end, start:end],
         cmap=cmap,
         vmin=0,
-        vmax=np.percentile(mat, vmax),
+        vmax=np.nanpercentile(mat, vmax),
         extent=(
             start * scaling_factor,
             end * scaling_factor,
