@@ -26,9 +26,9 @@ CLASSIFIERS = [
 
 name = "bacchus"
 
-MAJOR = 0
+MAJOR = 1
 MINOR = 0
-MAINTENANCE = 1
+MAINTENANCE = 0
 VERSION = "{}.{}.{}".format(MAJOR, MINOR, MAINTENANCE)
 
 LICENSE = "BSD3"
