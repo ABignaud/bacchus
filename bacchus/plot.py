@@ -385,7 +385,7 @@ def contact_map_ratio(
         Binning size in bp of the matrix. If none given, do not translate bins
         in bp genomic coordiantes.
     cmap : str
-        Colormap used. [Default: 'Reds']
+        Colormap used. [Default: 'seismic']
     dpi : int
         Dpi used. [Default: 300]
     end : int

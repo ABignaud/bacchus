@@ -1,1 +1,5 @@
+chromosight
+hicreppy
 hicstuff
+pyBigWig
+seaborn
