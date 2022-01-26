@@ -5,10 +5,11 @@
 around bacterial HiC experiments analysis.
 
 Functions:
-    - antidagonal
+    - antidiagonal_plot
     - antidiagonal_scalogram
-    - map
-    - map_ratio
+    - contact_map
+    - contact_map_ratio
+    - hicreppy_plot
     - parse_axis_str
 """
 

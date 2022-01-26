@@ -27,6 +27,7 @@ import copy
 import hicreppy.hicrep as hicrep
 import hicstuff.hicstuff as hcs
 import numpy as np
+import os
 import scipy.linalg as sl
 import scipy.sparse as sp
 import scipy.stats as st
@@ -210,7 +211,7 @@ def corr_matrix_sparse(
     # Plot correlation matrix.
     if plot_dir is not None:
         correlation_map_file = os.path.join(plot_dir, "correlation_map.png")
-        bcp.map_ratio(
+        bcp.contact_map_ratio(
             M,
             dpi=200,
             cmap="seismic",
