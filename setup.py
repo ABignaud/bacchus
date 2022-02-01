@@ -28,7 +28,7 @@ name = "bacchus"
 
 MAJOR = 1
 MINOR = 0
-MAINTENANCE = 0
+MAINTENANCE = 1
 VERSION = "{}.{}.{}".format(MAJOR, MINOR, MAINTENANCE)
 
 LICENSE = "BSD3"
