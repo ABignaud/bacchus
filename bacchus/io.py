@@ -7,12 +7,15 @@ Functions:
     - binned_map
     - build_map
     - extract_big_wig
+    - generates_frags
+    - merge_map
 """
 
 
 import bacchus.hic as bch
 import hicstuff.hicstuff as hcs
 import hicstuff.io as hio
+import math
 import numpy as np
 import pandas as pd
 import pyBigWig
@@ -135,7 +138,7 @@ def build_map(
 
 def extract_big_wig(
     file: str,
-    binning: Optional[int] = None,
+    binning: int = 1,
     circular: bool = True,
     sigma: Optional[int] = None,
     ztransform: bool = False,
@@ -161,30 +164,55 @@ def extract_big_wig(
     -------
     numpy.ndarray:
         Vector of the tracks values binned and z-transformed if asked.
+    dictionnary:
+        Dictionnary with the names of the chromosome as key and the start 
+        positions as value.
     """
+    # Create a dictionnary with starting position of chromosomes.
+    dict_chr = {}
+    length = 0
+
+    # Open BigWig file
     tab = pyBigWig.open(file)
     for name in tab.chroms():
-        length = tab.chroms()[name]
-    values = tab.values(name, 0, length)
-    values = np.array([0 if np.isnan(x) else x for x in values])
-    # Do a gaussian blur if sigma is given.
-    if sigma is not None:
-        # Define relevant mode according to the geometry of the genome.
-        if circular:
-            mode = "wrap"  # abcd|abcd|abcd
+        dict_chr[name] = length
+        length += math.ceil(tab.chroms()[name] / binning)
+
+    # Defined final vector of values.
+    binned_values = np.zeros((length))
+
+    for name in tab.chroms():
+        # Defined start position of the chromosome in the final binned vector.
+        start = dict_chr[name]
+
+        # Extract values for one chromosomes.
+        values = tab.values(name, 0, tab.chroms()[name])
+        values = np.array([0 if np.isnan(x) else x for x in values])
+
+        # Do a gaussian blur if sigma is given.
+        if sigma is not None:
+            # Define relevant mode according to the geometry of the genome.
+            if circular:
+                mode = "wrap"  # abcd|abcd|abcd
+            else:
+                mode = "nearest"  # aaaa|abcd|dddd
+            values = gaussian_filter1d(values, sigma=sigma, mode=mode)
+
+        # Binned values if values different of one.
+        if binning == 1:
+            binned_values[start : start + len(values)] = values
         else:
-            mode = "nearest"  # aaaa|abcd|dddd
-        values = gaussian_filter1d(values, sigma=sigma, mode=mode)
-    if binning is not None:
-        binned_values = np.zeros(((length // binning) + 1))
-        for i in range((length // binning) + 1):
-            binned_values[i] = np.nanmean(
-                values[binning * i : binning * (i + 1)]
-            )
-        values = binned_values
+            for i in range((len(values) // binning) + 1):
+                binned_values[start + i] = np.nanmean(
+                    values[binning * i : binning * (i + 1)]
+                )
+
+    # Ztransform
     if ztransform:
-        values = (values - np.nanmean(values)) / np.nanstd(values)
-    return values
+        binned_values = (binned_values - np.nanmean(binned_values)) / np.nanstd(
+            binned_values
+        )
+    return binned_values, dict_chr
 
 
 def generates_frags(n: int, binning: int) -> "pandas.DataFrame":
