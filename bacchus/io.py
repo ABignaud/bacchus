@@ -13,6 +13,7 @@ Functions:
 
 
 import bacchus.hic as bch
+import cooler
 import hicstuff.hicstuff as hcs
 import hicstuff.io as hio
 import math
@@ -87,7 +88,8 @@ def binned_map(
 def build_map(
     matrix_files: List[str],
     fragment_file: str,
-    bin_size: int,
+    bin_size: int = 1,
+    mat_format: str = "graal",
     normalize: bool = True,
     subsample: int = 0,
 ) -> "numpy.ndarray":
@@ -104,6 +106,8 @@ def build_map(
         Path to the graal fragment file.
     bin_size : int
         Binning size of the final matrix.
+    mat_format : str
+        Format of the matrix file, either graal or cool. Default graal.
     normalize : bool
         Either the matrix needs to be normalized or not.
     subsample : int
@@ -114,25 +118,35 @@ def build_map(
     numpy.ndarray
         Final dense matrix.
     """
-    # Iterates on the sparse matrices given and sum them if more than one is
-    # given.
-    for i, matrix_file in enumerate(matrix_files):
-        m, _ = binned_map(matrix_file, fragment_file, bin_size)
-        if i == 0:
-            M = m
+    if mat_format == "graal":
+        # Iterates on the sparse matrices given and sum them if more than one is
+        # given.
+        for i, matrix_file in enumerate(matrix_files):
+            m, _ = binned_map(matrix_file, fragment_file, bin_size)
+            if i == 0:
+                M = m
+            else:
+                M += m
+        # Subsample the contacts if necessary.
+        M = M.tocoo()
+        if subsample != 0:
+            M = hcs.subsample_contacts(M, int(subsample))
+        # Normalize the matrix if necessary.
+        if normalize:
+            M = hcs.normalize_sparse(M, norm="ICE", n_mad=10)
+        # Do the symetrics.
+        M = bch.get_symmetric(M)
+        # Transform to dense matrix.
+        M = M.toarray()
+
+    if mat_format == "cool":
+        # If mcool file, bin size is required.
+        if bin_size != 1:
+            M = cooler.Cooler(
+                f"{matrix_files[0]}::/resolutions/{bin_size}"
+            ).matrix(balance=normalize)[:]
         else:
-            M += m
-    # Subsample the contacts if necessary.
-    M = M.tocoo()
-    if subsample != 0:
-        M = hcs.subsample_contacts(M, int(subsample))
-    # Normalize the matrix if necessary.
-    if normalize:
-        M = hcs.normalize_sparse(M, norm="ICE", n_mad=10)
-    # Do the symetrics.
-    M = bch.get_symmetric(M)
-    # Transform to dense matrix.
-    M = M.toarray()
+            M = cooler.Cooler(matrix_files[0]).matrix(balance=normalize)[:]
     return M
 
 
@@ -165,7 +179,7 @@ def extract_big_wig(
     numpy.ndarray:
         Vector of the tracks values binned and z-transformed if asked.
     dictionnary:
-        Dictionnary with the names of the chromosome as key and the start 
+        Dictionnary with the names of the chromosome as key and the start
         positions as value.
     """
     # Create a dictionnary with starting position of chromosomes.

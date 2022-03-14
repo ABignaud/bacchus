@@ -242,7 +242,7 @@ def antidiagonal_scalogram(
     # Plot the antidiagonals strength.
     for i in range(len(values)):
         y = np.concatenate((values[i][start:], values[i][:start]))
-        ax.plot(x, y, linewidth=.7, color=color[i], label=labels[i])
+        ax.plot(x, y, linewidth=0.7, color=color[i], label=labels[i])
 
     # Legend
     ax.set_xlabel(f"Genomic coordinates {axis:s}", fontsize=16)
