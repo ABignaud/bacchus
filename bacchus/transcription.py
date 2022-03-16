@@ -175,7 +175,7 @@ def extract_window_track(
     # Fetch chrom size.
     track_start = chrom_start_size[chrom]["start"]
     track_end = track_start + chrom_start_size[chrom]["length"]
-    track = track[track_start:track_end]
+    track_chrom = track[track_start:track_end]
     # Sanity check of the size of the chromosomes.
     if track_end - track_start < 2 * window + 1:
         track_win = np.zeros((2 * window + 1))
@@ -183,10 +183,12 @@ def extract_window_track(
         return track_win
 
     if circular:
-        track = np.pad(track, pad_width=(window, window), mode="wrap")
+        track_chrom = np.pad(
+            track_chrom, pad_width=(window, window), mode="wrap"
+        )
     else:
-        track = np.pad(
-            track,
+        track_chrom = np.pad(
+            track_chrom,
             pad_width=(window, window),
             mode="constant",
             constant_values=np.nan,
@@ -197,7 +199,7 @@ def extract_window_track(
     end = pos + 2 * window + 1
 
     # Fetch the region
-    track_win = track[start:end]
+    track_win = track_chrom[start:end]
 
     # Flip the region if required.
     if flip:
@@ -261,17 +263,7 @@ def pileup_genes(
     # Compute the window_size in bins
     w_bin = window_size // binning
 
-    # Append extremities to manage easily edge case on array.
-    if circular:
-        rna = np.pad(rna, pad_width=(w_bin, w_bin), mode="wrap")
-    else:
-        rna = np.pad(
-            rna,
-            pad_width=(w_bin, w_bin),
-            mode="constant",
-            constant_values=np.nan,
-        )
-
+    # Compute threshold abse on genes percentile.
     threshold_value = np.nanpercentile(annotation.rpkm, 100 - threshold)
     print(
         f"{threshold}% of the genes have a RPKM value superior to {threshold_value}."
@@ -301,55 +293,64 @@ def pileup_genes(
         flip = True if annotation.loc[i, "strand"] == "-" else False
         rpkm = annotation.loc[i, "rpkm"]
 
-        if neg == "random-neighbor":
-            if pos < window_size:
-                pos_neg = random.randint(0, pos + 2 * window_size)
-            elif pos + window_size > clr.chromsizes[chrom]:
-                pos_neg = random.randint(
-                    clr.chromsizes[chrom] - 2 * window_size,
-                    clr.chromsizes[chrom],
+        if (neg == "random-neighbor") and (rpkm >= threshold_value):
+            mat_win_neg_all = np.zeros((10, w_bin * 2 + 1, w_bin * 2 + 1))
+            rna_win_neg_all = np.zeros((10, w_bin * 2 + 1))
+            for j in range(10):
+                if pos < window_size:
+                    pos_neg = random.randint(0, pos + 2 * window_size)
+                elif pos + window_size > clr.chromsizes[chrom]:
+                    pos_neg = random.randint(
+                        clr.chromsizes[chrom] - 2 * window_size,
+                        clr.chromsizes[chrom],
+                    )
+                else:
+                    pos_neg = random.randint(
+                        pos - window_size, pos + window_size
+                    )
+                mat_win_neg_all[j] = extract_window_matrix(
+                    clr=clr,
+                    chrom=chrom,
+                    pos=pos_neg,
+                    binning=binning,
+                    window=window_size,
+                    circular=circular,
+                    flip=flip,
                 )
-            else:
-                pos_neg = max(
-                    0, random.randint(pos - window_size, pos + window_size)
+                rna_win_neg_all[j] = extract_window_track(
+                    track=rna,
+                    chrom_start_size=chrom_start_size,
+                    chrom=chrom,
+                    pos=pos_neg // binning,
+                    window=w_bin,
+                    circular=circular,
+                    flip=flip,
                 )
-            mat_win_neg = extract_window_matrix(
+            mat_win_neg = np.apply_along_axis(np.nanmean, 0, mat_win_neg_all)
+            rna_win_neg = np.apply_along_axis(np.nanmean, 0, rna_win_neg_all)
+
+        # Extract matrix_window
+        if ((neg == "random-neighbor") and (rpkm >= threshold_value)) or (
+            neg == "non-transcribed"
+        ):
+            mat_win = extract_window_matrix(
                 clr=clr,
                 chrom=chrom,
-                pos=pos_neg,
+                pos=pos,
                 binning=binning,
                 window=window_size,
                 circular=circular,
                 flip=flip,
             )
-            rna_win_neg = extract_window_track(
+            rna_win = extract_window_track(
                 track=rna,
                 chrom_start_size=chrom_start_size,
                 chrom=chrom,
-                pos=pos_neg // binning,
+                pos=pos // binning,
                 window=w_bin,
                 circular=circular,
                 flip=flip,
             )
-        # Extract matrix_window
-        mat_win = extract_window_matrix(
-            clr=clr,
-            chrom=chrom,
-            pos=pos,
-            binning=binning,
-            window=window_size,
-            circular=circular,
-            flip=flip,
-        )
-        rna_win = extract_window_track(
-            track=rna,
-            chrom_start_size=chrom_start_size,
-            chrom=chrom,
-            pos=pos // binning,
-            window=w_bin,
-            circular=circular,
-            flip=flip,
-        )
 
         # Add the matrix in the positive pileup if first gene expressed.
         if rpkm >= threshold_value:
@@ -362,50 +363,51 @@ def pileup_genes(
                 if state == "reverse" and pos - pos_state <= tu_length:
                     pattern_windows_pos[i - 1][:] = np.nan
                     rna_windows_pos[i - 1][:] = np.nan
-                    pattern_windows_pos[i] = mat_win
-                    rna_windows_pos[i] = rna_win
+                    pattern_windows_pos[i][:] = mat_win
+                    rna_windows_pos[i][:] = rna_win
                     if neg == "random-neighbor":
                         pattern_windows_neg[i - 1][:] = np.nan
                         rna_windows_neg[i - 1][:] = np.nan
-                        pattern_windows_neg[i] = mat_win_neg
-                        rna_windows_neg[i] = rna_win_neg
+                        pattern_windows_neg[i][:] = mat_win_neg
+                        rna_windows_neg[i][:] = rna_win_neg
                 else:
                     n_pos += 1
-                    pattern_windows_pos[i] = mat_win
-                    rna_windows_pos[i] = rna_win
+                    pattern_windows_pos[i][:] = mat_win
+                    rna_windows_pos[i][:] = rna_win
                     if neg == "random-neighbor":
-                        pattern_windows_neg[i] = mat_win_neg
-                        rna_windows_neg[i] = rna_win_neg
+                        pattern_windows_neg[i][:] = mat_win_neg
+                        rna_windows_neg[i][:] = rna_win_neg
+                state = "reverse"
+
             else:
                 # Forward case: Do not write anything if one gene before.
                 if state != "forward" or pos - pos_state > tu_length:
                     n_pos += 1
-                    pattern_windows_pos[i] = mat_win
-                    rna_windows_pos[i] = rna_win
+                    pattern_windows_pos[i][:] = mat_win
+                    rna_windows_pos[i][:] = rna_win
                     if neg == "random-neighbor":
-                        pattern_windows_neg[i] = mat_win_neg
-                        rna_windows_neg[i] = rna_win_neg
+                        pattern_windows_neg[i][:] = mat_win_neg
+                        rna_windows_neg[i][:] = rna_win_neg
                 else:
                     pattern_windows_pos[i][:] = np.nan
                     rna_windows_pos[i][:] = np.nan
                     if neg == "random-neighbor":
                         pattern_windows_neg[i][:] = np.nan
                         rna_windows_neg[i][:] = np.nan
+                state = "forward"
+            pos_state = pos
 
         # If no expression add it in the negative pileup.
-        else:
-            pattern_windows_pos[i][:] = np.nan
-            rna_windows_pos[i][:] = np.nan
-
-        if neg == "non-transcribed":
+        elif neg == "non-transcribed":
             pattern_windows_neg[i] = mat_win
             rna_windows_neg[i] = rna_win
+            pattern_windows_pos[i][:] = np.nan
+            rna_windows_pos[i][:] = np.nan
         else:
             pattern_windows_neg[i][:] = np.nan
             rna_windows_neg[i][:] = np.nan
-
-        state = "reverse" if flip else "forward"
-        pos_state = pos
+            pattern_windows_pos[i][:] = np.nan
+            rna_windows_pos[i][:] = np.nan
 
     print(f"Number of genes transcribed: {n_pos}")
     print(f"Total genes: {n}")

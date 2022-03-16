@@ -11,6 +11,7 @@ Functions:
     - contact_map_ratio
     - hicreppy_plot
     - parse_axis_str
+    - pileup_plot
 """
 
 
@@ -473,7 +474,7 @@ def hicreppy_plot(
         Matrix of the stratum corelation coefficient from hicreppy.
     labels : list of str
         List of the string to use as labels.
-    outfile : str
+    out_file : str
         Path were to write the output plots. Extension should be compatible with
         savefig.
     """
@@ -533,3 +534,148 @@ def parse_axis_str(axis: str) -> float:
     # Extract unit and use the according bin at the scaling factor.
     scaling_factor = 1 / binsuffix[bp_unit[0]]
     return scaling_factor
+
+
+def pileup_plot(
+    pileup: "numpy.ndarray",
+    pileup_control: Optional["numpy_ndarray"] = None,
+    gen_tracks: Optional[List["numpy_ndarray"]] = None,
+    gen_tracks_control: Optional[List["numpy_ndarray"]] = None,
+    binning: int = 1,
+    window: int = 0,
+    ratio: str = "diff",
+    out_file: Optional[str] = None,
+    title: Optional[str] = None,
+    dpi: int = 100,
+):
+    """Function to plot pileup of genes.
+
+    Parameters
+    ----------
+    pileup : numpy.ndarray
+        Pileup contact map.
+    pileup_control : numpy.ndarray
+        Control for the pileup contact map. Should have the same dimension as
+        the pileup.
+    gen_tracks : list of numpy.ndarray
+        List of genomic tracks to plot under the pileup.
+    gen_tracks_control :
+        List of control genomic tracks to plot under the pileup. Should have the
+        same dimension as the genomics tracks.
+    binning : int
+        Size of the bins in base pair. [Default: 1]
+    windwow : int
+        Size of the window to plot in base pair. Need the binning value. If 0
+        plot the whole matrix. [Default: 0]
+    ratio : str
+        Either diff or log. The ratio done between pileup of interest and
+        control pileup (difference or log ratio).
+    out_file : file
+        Path were to write the output plots. Extension should be compatible with
+        savefig.
+    title : str
+        Title of the plot.
+    dpi : int
+        Dpi to plot the figure.
+    """
+
+    # If one control is given make the the difference.
+    if pileup_control is not None:
+        if ratio == "diff":
+            pileup = pileup - pileup_control
+        elif ratio == "log":
+            pileup = np.log2(pileup) - np.log2(pileup_control)
+    if gen_tracks is not None and gen_tracks_control is not None:
+        if ratio == "diff":
+            for i in range(len(gen_tracks)):
+                gen_tracks[i] = gen_tracks[i] - gen_tracks_control[i]
+        elif ratio == "log":
+            for i in range(len(gen_tracks)):
+                gen_tracks[i] = np.log2(gen_tracks[i]) - np.log2(
+                    gen_tracks_control[i]
+                )
+
+    # Set the window size
+    n = np.shape(pileup)[0]
+    w_bin = window // binning
+    if binning != 1:
+        ax_kb = 1000
+    else:
+        ax_kb = 1
+    if window == 0 or w_bin >= n // 2:
+        window_plot = (n // 2) * binning / ax_kb
+    elif w_bin < n // 2:
+        window_plot = window / ax_kb
+        start = n // 2 - w_bin
+        end = n // 2 + w_bin + 1
+        pileup = pileup[start:end, start:end]
+        if gen_tracks is not None:
+            for i in range(len(gen_tracks)):
+                gen_tracks[i] = gen_tracks[i][start:end]
+
+    # Plot gen tracks if one given.
+    if gen_tracks is not None:
+        fig, ax = plt.subplots(
+            2, 1, figsize=(8, 13), gridspec_kw={"height_ratios": [7, 3]}
+        )
+        ax[1].axvline(
+            0, color="black", linestyle="dashed", linewidth=1.5, alpha=0.4
+        )
+        ax[1].tick_params(axis="both", labelsize=14)
+        for i in range(len(gen_tracks)):
+            ax[1].plot(
+                np.arange(
+                    -window_plot,
+                    window_plot + (1 * binning / ax_kb),
+                    binning / ax_kb,
+                ),
+                gen_tracks[i],
+            )
+        ax[1].set_ylabel("Transcription (CPM)", fontsize=15)
+        if binning != 1:
+            ax[1].set_xlabel("Genomic distance (kb)", fontsize=15)
+        else:
+            ax[1].set_xlabel("Genomic distance (bin)", fontsize=15)
+        pax = ax[0]
+        pax.get_xaxis().set_visible(False)
+
+    else:
+        fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+        pax = ax
+        if binning != 1:
+            pax.set_xlabel("Genomic distance (kb)", fontsize=15)
+        else:
+            pax.set_xlabel("Genomic distance (bin)", fontsize=15)
+
+    # Plot the pileup contact map.
+    im = pax.imshow(
+        pileup,
+        cmap="seismic",
+        vmin=-np.nanpercentile(pileup, 99),
+        vmax=np.nanpercentile(pileup, 99),
+        extent=[-window_plot, window_plot, window_plot, -window_plot],
+    )
+    pax.axvline(0, color="black", linestyle="dashed", linewidth=1.5, alpha=0.4)
+    pax.axhline(0, color="black", linestyle="dashed", linewidth=1.5, alpha=0.4)
+    pax.tick_params(axis="both", labelsize=14)
+    if binning != 1:
+        pax.set_ylabel("Genomic distance (kb)", fontsize=15)
+    else:
+        pax.set_ylabel("Genomic distance (bin)", fontsize=15)
+
+    # Add colorbar.
+    if gen_tracks is not None:
+        fig.colorbar(
+            im, ax=ax.ravel().tolist(), shrink=0.33, anchor=(1.5, 0.75)
+        )
+        plt.subplots_adjust(hspace=0.1)
+    else:
+        fig.colorbar(im)
+
+    # Add title if one given.
+    if title is not None:
+        pax.set_title(title, fontsize=20)
+
+    # Save figure if an outfile is given.
+    if out_file is not None:
+        plt.savefig(out_file, dpi=dpi)
