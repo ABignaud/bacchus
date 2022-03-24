@@ -651,8 +651,8 @@ def pileup_plot(
     im = pax.imshow(
         pileup,
         cmap="seismic",
-        vmin=-np.nanpercentile(pileup, 99),
-        vmax=np.nanpercentile(pileup, 99),
+        vmin=min(-0.01, -np.nanpercentile(pileup, 99)),
+        vmax=max(0.01, np.nanpercentile(pileup, 99)),
         extent=[-window_plot, window_plot, window_plot, -window_plot],
     )
     pax.axvline(0, color="black", linestyle="dashed", linewidth=1.5, alpha=0.4)
@@ -666,11 +666,11 @@ def pileup_plot(
     # Add colorbar.
     if gen_tracks is not None:
         fig.colorbar(
-            im, ax=ax.ravel().tolist(), shrink=0.33, anchor=(1.5, 0.75)
+            im, ax=ax.ravel().tolist(), shrink=0.33, anchor=(1.3, 0.75)
         )
         plt.subplots_adjust(hspace=0.1)
     else:
-        fig.colorbar(im)
+        fig.colorbar(im, fontsize=5)
 
     # Add title if one given.
     if title is not None:
