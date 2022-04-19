@@ -330,8 +330,10 @@ def pileup_genes(
             rna_win_neg = np.apply_along_axis(np.nanmean, 0, rna_win_neg_all)
 
         # Extract matrix_window
-        if ((neg == "random-neighbor") and (rpkm >= threshold_value)) or (
-            neg == "non-transcribed"
+        if (
+            ((neg == "random-neighbor") and (rpkm >= threshold_value))
+            or (neg == "non-transcribed")
+            or (neg == "detrend")
         ):
             mat_win = extract_window_matrix(
                 clr=clr,

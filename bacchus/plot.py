@@ -584,16 +584,16 @@ def pileup_plot(
         if ratio == "diff":
             pileup = pileup - pileup_control
         elif ratio == "log":
-            pileup = np.log2(pileup) - np.log2(pileup_control)
+            pileup = np.log10(pileup) - np.log10(pileup_control)
     if gen_tracks is not None and gen_tracks_control is not None:
-        if ratio == "diff":
+        if ratio == "diff" or ratio == "log":
             for i in range(len(gen_tracks)):
                 gen_tracks[i] = gen_tracks[i] - gen_tracks_control[i]
-        elif ratio == "log":
-            for i in range(len(gen_tracks)):
-                gen_tracks[i] = np.log2(gen_tracks[i]) - np.log2(
-                    gen_tracks_control[i]
-                )
+        # elif ratio == "log":
+        #     for i in range(len(gen_tracks)):
+        #         gen_tracks[i] = np.log10(gen_tracks[i]) - np.log10(
+        #             gen_tracks_control[i]
+        #         )
 
     # Set the window size
     n = np.shape(pileup)[0]
@@ -651,8 +651,12 @@ def pileup_plot(
     im = pax.imshow(
         pileup,
         cmap="seismic",
-        vmin=min(-0.01, -np.nanpercentile(pileup, 99)),
-        vmax=max(0.01, np.nanpercentile(pileup, 99)),
+        vmin=-np.max(
+            np.abs(pileup)
+        ),  # min(-0.0005, -np.nanpercentile(pileup, 99.5)),
+        vmax=np.max(
+            np.abs(pileup)
+        ),  # max(0.0005, np.nanpercentile(pileup, 99.5)),
         extent=[-window_plot, window_plot, window_plot, -window_plot],
     )
     pax.axvline(0, color="black", linestyle="dashed", linewidth=1.5, alpha=0.4)
