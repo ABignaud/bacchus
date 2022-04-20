@@ -26,6 +26,4 @@ jobs:
         pip install pytest-pylint
     - name: Lint and test
       run: |
-        pytest --pylint --pylint-error-types=EF --pylint-rcfile=.pylintrc --doctest-modules --doctest-modules bacchus
-        pytest --cov=bacchus
-        codecov
+        pytest --pylint --pylint-error-types=EF --pylint-rcfile=.pylintrc --doctest-modules --doctest-modules bacchus --cov=bacchus

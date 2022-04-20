@@ -9,6 +9,7 @@ Functions:
     - compute_hic_signal
     - corr_matrix_sparse
     - detrend_matrix_sparse
+    - fourc_like
     - get_hicreppy
     - get_symmetric
     - get_win_density

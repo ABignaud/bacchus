@@ -103,6 +103,15 @@ def di_borders(di: List[float]) -> List[float]:
     -------
     list of int:
         Positions in bins of the detected borders.
+    
+    Example
+    -------
+        >>> di = [0.5, 2., 3., 4., 0.1, -3.2, -3.5, 0.]
+        >>> print(di_borders(di))
+        []
+        >>> di = [0.5, 2., 3., 4., 0.1, -3.2, 4., -2.]
+        >>> print(di_borders(di))
+        [1, 6]
     """
     # Initiation use last value as previous one as the genome is considered as
     # circular.
@@ -114,9 +123,9 @@ def di_borders(di: List[float]) -> List[float]:
 
     # Iterates on the DI values
     for i, curr_di in enumerate(di):
-        if curr_di > 1.96 and negative:
+        if curr_di >= 1.96 and negative:
             borders.append(i)
             negative = False
-        if curr_di < -1.96:
+        if curr_di <= -1.96:
             negative = True
     return borders
