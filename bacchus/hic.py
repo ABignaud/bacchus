@@ -25,7 +25,9 @@ import chromosight.utils.preprocessing as cup
 import cooler
 import copy
 import hicreppy.hicrep as hicrep
+import hicstuff.commands as hcc
 import hicstuff.hicstuff as hcs
+import math
 import numpy as np
 import os
 import scipy.linalg as sl
@@ -284,6 +286,85 @@ def detrend_matrix_sparse(
     return M.tocsr()
 
 
+def fourc_like(
+    M: "scipy.sparse.csr.csr_matrix",
+    frags: "pandas.DataFrame",
+    reg1: str,
+    reg2: str,
+    bin_size: int,
+    window: int = 10_000,
+    stride: int = 1_000,
+    out_file: Optional[str] = None,
+) -> "pandas.DataFrame":
+    """Compute a 4C-like vector of the region 2 contacts against the region 1.
+
+    Parameters
+    ----------
+    M : scipy.sparse.csr.csr_matrix
+        Sparse or dense symetric matrix.
+    frags : pandas.DataFrame
+        Index tables of the different fragments and chromosomes.
+    reg1 : str
+        UCSC position of the region to sum contacts.
+    reg2 : str
+        UCSC position of the region of interest.
+    bin_size : int
+        Size of bin in the matrix in base pair.
+    window : int
+        Size of one window in base pair. [Default 10000].
+    stride : int
+        Size of step to do on output genome in base pair. [Default 1000].
+    out_file : str
+        Output file to write the track in tsv format.
+
+    Returns
+    -------
+    pandas.DataFrame:
+        4C-like normalized vector.
+    """
+    # Define bin_size as the greatest common divisor between the stride and the
+    # resolution.
+    window = int((window / bin_size) / 2)
+    stride = int(stride / bin_size)
+
+    # Parse UCSC regions.
+    bins = frags[["chrom", "start_pos"]]
+    reg1 = hcc.parse_ucsc(reg1, bins)
+    reg2 = hcc.parse_ucsc(reg2, bins)
+    fourc = frags.loc[reg1[0] : reg1[1]]
+
+    # Compute the 4C like vector.
+    fourc["val"] = 0
+
+    # Check the symetry of the matrix.
+    if not is_symmetric(M):
+        M = get_symmetric(M)
+
+    # Proportion of contacts to normalize.
+    proportion = (
+        M[reg2[0] : reg2[1], reg2[0] : reg2[1]].sum()
+        / M[reg1[0] : reg1[1], reg1[0] : reg1[1]].sum()
+    )
+
+    reg = [0, 0]
+    for i in range(reg1[0], reg1[1] + 1, stride):
+        reg[0] = max(reg1[0], i - window)
+        reg[1] = min(reg1[1] + 1, i + window + 1)
+        size = reg[1] - reg[0]
+        # Inter contacts to take into account.
+        count = M[reg[0] : reg[1], reg2[0] : reg2[1]].sum()
+        # Intra contacts in the reference same region to normalize.
+        count_ref = M[reg[0] : reg[1], reg1[0] : reg1[1]].sum()
+        # Normalize the value by the size, the number of intra-contacts and the
+        # proportion of reads between the region 2 and 1.
+        fourc.loc[i, "val"] = ((count / size) / (count_ref / size)) / proportion
+
+    # Write it in a CSV object.
+    if out_file is not None:
+        output.to_csv(out_file, sep="\t", header=True, index=False)
+    return fourc
+
+
 def get_hicreppy(
     matrix_list: List[str], subsample: int = 0, h: Optional[int] = None
 ) -> "numpy.ndarray":
@@ -292,7 +373,7 @@ def get_hicreppy(
 
     Parameters
     ----------
-    matrix_list : list of int
+    matrix_list : list of str
         List of path to cooler matrices.
     subsample : int
         Subsample values of the matrices. If 0 is given it will give a subsample
@@ -354,6 +435,22 @@ def get_symmetric(M: "scipy.sparse.csr_matrix") -> "scipy.sparse.csr_matrix":
     -------
     scipy.sparse.csr_matrix:
         matrix symetrized
+
+    Example
+    -------
+        >>> import numpy as np
+        >>> import scipy.sparse as ssp
+        >>> M = ssp.csr_matrix(np.array([[0, 0, 1], [0, 1, 0], [0, 0, 1]]))
+        >>> print(get_symmetric(M))
+        (0, 2)        1
+        (1, 1)        1
+        (2, 0)        1
+        (2, 2)        1
+        >>> M = ssp.csr_matrix(np.array([[0, 0, 1], [0, 1, 0], [1, 0, 0]]))
+        >>> print(get_symmetric(M))
+        (0, 2)        1
+        (1, 1)        1
+        (2, 0)        1
     """
     # Test whether it's already symetric or not.
     if not is_symmetric(M):
@@ -516,6 +613,17 @@ def is_symmetric(M: "scipy.sparse.csr_matrix") -> bool:
     -------
     bool:
         Either the matrix is symetric or not
+
+    Example
+    -------
+        >>> import numpy as np
+        >>> import scipy.sparse as ssp
+        >>> M = ssp.csr_matrix(np.array([[0, 0, 1], [0, 1, 0], [0, 0, 1]]))
+        >>> is_symmetric(M)
+        False
+        >>> M = ssp.csr_matrix(np.array([[0, 0, 1], [0, 1, 0], [1, 0, 0]]))
+        >>> is_symmetric(M)
+        True
     """
     return (abs(M - M.T) > 1e-10).nnz == 0
 
@@ -535,6 +643,16 @@ def map_extend(M: "numpy.ndarray", s: int) -> "numpy.ndarray":
     -------
     numpy.ndarray
         Extended matrix.
+
+    Example
+    -------
+        >>> import numpy as np
+        >>> M = np.array([[1, 2], [3, 4]])
+        >>> print(map_extend(M, 1))
+        [[4 3 4 3]
+         [2 1 2 1]
+         [4 3 4 3]
+         [2 1 2 1]]
     """
     # Comput the size of the initial matrix.
     n = len(M)
