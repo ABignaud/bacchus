@@ -1,0 +1,31 @@
+name: build
+
+on: [push]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 5
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+    - name: Add conda to system path
+      run: |
+        # $CONDA is an environment variable pointing to the root of the miniconda directory
+        echo $CONDA/bin >> $GITHUB_PATH
+    - name: Install dependencies
+      run: |
+        conda config --add channels bioconda
+        conda install -c conda-forge python=3.9 pytest pytest-cov pylint codecov cooler 
+        pip install -Ur requirements.txt
+        pip install pytest-pylint
+    - name: Lint and test
+      run: |
+        pytest --pylint --pylint-error-types=EF --pylint-rcfile=.pylintrc --doctest-modules --doctest-modules bacchus
+        pytest --cov=bacchus
+        codecov

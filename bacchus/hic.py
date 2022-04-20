@@ -361,7 +361,7 @@ def fourc_like(
 
     # Write it in a CSV object.
     if out_file is not None:
-        output.to_csv(out_file, sep="\t", header=True, index=False)
+        fourc.to_csv(out_file, sep="\t", header=True, index=False)
     return fourc
 
 

@@ -20,6 +20,25 @@ def test_compute_antidiagonal():
             [0.86, 0.14, 0.46, 0.66, 0.24, 1.0],
         ]
     )
+    values1 = bca.compute_antidiagonal(M1,)
+    val1_true = np.array(
+        [
+            1.82905,
+            1.49145,
+            1.70085,
+            1.00000,
+            1.95299,
+            1.99145,
+            1.82905,
+            1.49145,
+            1.70085,
+            1.00000,
+            1.95299,
+            1.99145,
+        ]
+    )
+    np.testing.assert_allclose(values1, val1_true, rtol=1e-05)
+
     M2 = np.array(
         [
             [1.0, 0.47, 0.07, 0.07, 0.4, 0.74, 0.27],
@@ -31,43 +50,24 @@ def test_compute_antidiagonal():
             [0.32, 0.99, 0.23, 0.68, 0.11, 0.24, 1.0],
         ]
     )
-    values1 = bca.compute_antidiagonal(M1, ori_pos=300, binning=100)
-    values2 = bca.compute_antidiagonal(M2, ori_pos=900, binning=100, full=False)
-    assert values1 == np.array(
-        [
-            1.82905983,
-            1.49145299,
-            1.7008547,
-            1.0,
-            1.95299145,
-            1.99145299,
-            1.82905983,
-            1.49145299,
-            1.7008547,
-            1.0,
-            1.95299145,
-            1.99145299,
-        ]
-    )
-    assert values2 == np.array(
-        [
-            1.07329843,
-            1.02617801,
-            1.0,
-            1.06020942,
-            1.20157068,
-            1.39790576,
-            1.15183246,
-            1.07329843,
-            1.02617801,
-            1.0,
-            1.06020942,
-            1.20157068,
-            1.39790576,
-            1.15183246,
-        ]
-    )
-    return values
+    values2 = bca.compute_antidiagonal(M2, full=False)
+    val2_true = np.array([
+        3.24818,
+        1.48218, 
+        1.68716, 
+        2.86975,
+        2.57016,
+        2.55439,
+        2.04982,
+        1.46641,
+        2.64900,
+        1.95521,
+        2.47556,
+        1.65562,
+        4.13118,
+        0.93030,
+    ])
+    np.testing.assert_allclose(values2, val2_true, rtol=1e-05)
 
 
 def test_antidiagonal_scalogram():

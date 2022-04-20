@@ -521,10 +521,10 @@ def parse_axis_str(axis: str) -> float:
 
     Example
     -------
-    >>> parse_bin_str("KB")
-    .001
-    >>> parse_bin_str("mb")
-    .000001
+    >>> parse_axis_str("KB")
+    0.001
+    >>> parse_axis_str("mb")
+    1e-06
 
     """
     axis = axis.upper()
