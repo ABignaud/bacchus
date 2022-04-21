@@ -329,10 +329,10 @@ def fourc_like(
     stride = int(stride / bin_size)
 
     # Parse UCSC regions.
-    bins = frags[["chrom", "start_pos"]]
+    bins = frags.iloc[:, 0:2]
     reg1 = hcc.parse_ucsc(reg1, bins)
     reg2 = hcc.parse_ucsc(reg2, bins)
-    fourc = frags.loc[reg1[0] : reg1[1]]
+    fourc = frags.iloc[reg1[0] : reg1[1], 0:3]
 
     # Compute the 4C like vector.
     fourc["val"] = 0
@@ -343,19 +343,19 @@ def fourc_like(
 
     # Proportion of contacts to normalize.
     proportion = (
-        M[reg2[0] : reg2[1], reg2[0] : reg2[1]].sum()
-        / M[reg1[0] : reg1[1], reg1[0] : reg1[1]].sum()
+        np.nansum(M[reg2[0] : reg2[1], reg2[0] : reg2[1]].toarray())
+        / np.nansum(M[reg1[0] : reg1[1], reg1[0] : reg1[1]].toarray())
     )
-
+    
     reg = [0, 0]
-    for i in range(reg1[0], reg1[1] + 1, stride):
+    for i in range(reg1[0], reg1[1], stride):
         reg[0] = max(reg1[0], i - window)
         reg[1] = min(reg1[1] + 1, i + window + 1)
         size = reg[1] - reg[0]
         # Inter contacts to take into account.
-        count = M[reg[0] : reg[1], reg2[0] : reg2[1]].sum()
+        count = np.nansum(M[reg[0] : reg[1], reg2[0] : reg2[1]].toarray())
         # Intra contacts in the reference same region to normalize.
-        count_ref = M[reg[0] : reg[1], reg1[0] : reg1[1]].sum()
+        count_ref = np.nansum(M[reg[0] : reg[1], reg1[0] : reg1[1]].toarray())
         # Normalize the value by the size, the number of intra-contacts and the
         # proportion of reads between the region 2 and 1.
         fourc.loc[i, "val"] = ((count / size) / (count_ref / size)) / proportion
