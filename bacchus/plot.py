@@ -15,6 +15,7 @@ Functions:
 """
 
 
+import cooler
 import matplotlib.pyplot as plt
 import numpy as np
 import re
@@ -243,11 +244,12 @@ def antidiagonal_scalogram(
     # Plot the antidiagonals strength.
     for i in range(len(values)):
         y = np.concatenate((values[i][start:], values[i][:start]))
-        ax.plot(x, y, linewidth=0.7, color=color[i], label=labels[i])
+        ax.plot(x, y, linewidth=0.7, color=color[i], label=labels[i], alpha=0.5)
 
     # Legend
     ax.set_xlabel(f"Genomic coordinates {axis:s}", fontsize=16)
     ax.set_ylabel("Antidiagonal strength", fontsize=16)
+    ax.set_ylim(0.5, 5)
     ax.tick_params(size=16)
     if title is not None:
         ax.set_title(title, size=18)
@@ -267,6 +269,7 @@ def contact_map(
     dpi: int = 300,
     end: int = 0,
     out_file: Optional[str] = None,
+    chrom_starts: Optional[List[int]] = None,
     start: int = 0,
     title: Optional[str] = None,
     vmax: float = 99,
@@ -295,6 +298,9 @@ def contact_map(
         Path of the output file to save the plot. The extension have to match
         matplotlib.pyplot.savefig extensions. If none given, don't save the
         figure.
+    chrom_starts : list of int
+        List of int with th epositions in base pair of start position of the
+        chromosomes/contigs in the matrix.
     start : int
         Start position in bins of the region plot. If none given, it will start
         with the beginning of the matrix. [Default: 0]
@@ -331,6 +337,14 @@ def contact_map(
             start * scaling_factor,
         ),
     )
+
+    # Lines
+    if chrom_starts is not None:
+        li_kwargs = {'ls': ':', 'alpha': 0.5, 'c': 'black'}
+        for pos in chrom_starts:
+            pos = (pos // binning) * scaling_factor
+            ax.axvline(pos, **li_kwargs)
+            ax.axhline(pos, **li_kwargs)
 
     # Legend
     ax.set_xlabel(f"Genomic coordinates ({axis:s})", fontsize=16)
@@ -461,6 +475,34 @@ def contact_map_ratio(
     # Savefig
     if out_file is not None:
         plt.savefig(out_file, dpi=dpi)
+
+
+def get_chrom_start(cool_file: str):
+    """Function to get the start positiosn of chromosomes in cumulative base 
+    pair from a cool file.
+
+    Parameters
+    ----------
+
+    cool_file : str
+        Path to the cool file.
+    
+    Return
+    ------
+    mumpy.ndarray:
+        List of the start positiosn of chromosomes in cumulative base pair.
+    """
+    # Import chroms from cool.
+    cool = cooler.Cooler(f'{cool_file}')
+    chroms = cool.chroms()[:]
+
+    # Create chrom_starts list
+    chrom_starts = np.zeros(len(chroms))
+    cumul_length = 0
+    for i, length in enumerate(chroms.length):
+        chrom_starts[i] = cumul_length
+        cumul_length += length
+    return chrom_starts
 
 
 def hicreppy_plot(
@@ -651,11 +693,11 @@ def pileup_plot(
     im = pax.imshow(
         pileup,
         cmap="seismic",
-        vmin=-np.max(
-            np.abs(pileup)
+        vmin=-np.nanpercentile(
+            np.abs(pileup), 95
         ),  # min(-0.0005, -np.nanpercentile(pileup, 99.5)),
-        vmax=np.max(
-            np.abs(pileup)
+        vmax=np.nanpercentile(
+            np.abs(pileup), 95
         ),  # max(0.0005, np.nanpercentile(pileup, 99.5)),
         extent=[-window_plot, window_plot, window_plot, -window_plot],
     )
