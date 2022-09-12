@@ -31,8 +31,7 @@ import hicstuff.hicstuff as hcs
 import math
 import numpy as np
 import os
-import scipy.linalg as sl
-import scipy.sparse as sp
+import scipy as sp
 import scipy.stats as st
 from typing import List, Optional, Tuple
 
@@ -86,7 +85,7 @@ def compartments_sparse(
     )
 
     # Extract eigen vectors and eigen values
-    [eigen_vals, pr_comp] = sl.eig(M)
+    [eigen_vals, pr_comp] = sp.linalg.eig(M)
 
     return pr_comp[:, 0], pr_comp[:, 1]
 
@@ -197,6 +196,9 @@ def corr_matrix_sparse(
     # Make matrix symetric (in case of upper triangle)
     M = get_symmetric(M)
 
+    # Remove nan values.
+    np.nan_to_num(M.data, copy=False)
+
     # Normalize the matrix
     if normalize:
         M = hcs.normalize_sparse(M, norm="SCN")
@@ -269,10 +271,10 @@ def detrend_matrix_sparse(
     if antidiagonal:
         M = np.rot90(M.todense())
         dist_vals = np.array([np.average(M.diagonal(j)) for j in range(n)])
-        M = sp.coo_matrix(M)
+        M = sp.sparse.coo_matrix(M)
         M.data = np.log2(M.data / dist_vals[abs(M.row - M.col)])
         M = np.rot90(M.todense()).T
-        M = sp.coo_matrix(M)
+        M = sp.sparse.coo_matrix(M)
 
     # Plot detrend matrix
     if plot_dir is not None:
@@ -342,11 +344,10 @@ def fourc_like(
         M = get_symmetric(M)
 
     # Proportion of contacts to normalize.
-    proportion = (
-        np.nansum(M[reg2[0] : reg2[1], reg2[0] : reg2[1]].toarray())
-        / np.nansum(M[reg1[0] : reg1[1], reg1[0] : reg1[1]].toarray())
-    )
-    
+    proportion = np.nansum(
+        M[reg2[0] : reg2[1], reg2[0] : reg2[1]].toarray()
+    ) / np.nansum(M[reg1[0] : reg1[1], reg1[0] : reg1[1]].toarray())
+
     reg = [0, 0]
     for i in range(reg1[0], reg1[1], stride):
         reg[0] = max(reg1[0], i - window)
@@ -367,7 +368,10 @@ def fourc_like(
 
 
 def get_hicreppy(
-    matrix_list: List[str], subsample: int = 0, h: Optional[int] = None
+    matrix_list: List[str],
+    max_dist: int = 100_000,
+    subsample: int = 0,
+    h: Optional[int] = None,
 ) -> "numpy.ndarray":
     """Compute a correlation matrix using HiCreppy between HiC matrix. It needs
     cooler files as input.
@@ -376,6 +380,9 @@ def get_hicreppy(
     ----------
     matrix_list : list of str
         List of path to cooler matrices.
+    max_dist : int
+        Maximum distance at which to compute the SCC, in basepairs.
+        [Default: 100000]
     subsample : int
         Subsample values of the matrices. If 0 is given it will give a subsample
         value of the smallest numbers of contacts of all matrices.
@@ -407,7 +414,7 @@ def get_hicreppy(
             for j in range(i + 1, N):
                 M1 = cooler.Cooler(matrix_list[i])
                 M2 = cooler.Cooler(matrix_list[j])
-                h = max(h, hicrep.h_train(M1, M2, max_dist=200000, h_max=10))
+                h = max(h, hicrep.h_train(M1, M2, max_dist=max_dist, h_max=10))
 
     # Compute Hicrep
     for i in range(N):
@@ -416,7 +423,7 @@ def get_hicreppy(
             M1 = cooler.Cooler(matrix_list[i])
             M2 = cooler.Cooler(matrix_list[j])
             scc = hicrep.genome_scc(
-                M1, M2, max_dist=200000, h=h, subsample=subsample
+                M1, M2, max_dist=max_dist, h=h, subsample=subsample
             )
             data[i, j] = scc
             data[j, i] = scc
@@ -440,14 +447,14 @@ def get_symmetric(M: "scipy.sparse.csr_matrix") -> "scipy.sparse.csr_matrix":
     Example
     -------
         >>> import numpy as np
-        >>> import scipy.sparse as ssp
-        >>> M = ssp.csr_matrix(np.array([[0, 0, 1], [0, 1, 0], [0, 0, 1]]))
+        >>> import scipy as sp
+        >>> M = sp.sparse.csr_matrix(np.array([[0, 0, 1], [0, 1, 0], [0, 0, 1]]))
         >>> print(get_symmetric(M))
         (0, 2)        1
         (1, 1)        1
         (2, 0)        1
         (2, 2)        1
-        >>> M = ssp.csr_matrix(np.array([[0, 0, 1], [0, 1, 0], [1, 0, 0]]))
+        >>> M = sp.sparse.csr_matrix(np.array([[0, 0, 1], [0, 1, 0], [1, 0, 0]]))
         >>> print(get_symmetric(M))
         (0, 2)        1
         (1, 1)        1
@@ -492,13 +499,15 @@ def get_win_density(
     # Generate a binary matrix (pixels are either empty or full)
     bin_mat = mat.copy()
     if sym_upper:
-        bin_mat = sp.triu(bin_mat)
+        bin_mat = sp.sparse.triu(bin_mat)
     bin_mat.data = bin_mat.data.astype(bool)
     # Adding a frame of zeros around the signal
-    tmp = sp.csr_matrix((win_size - 1, ns), dtype=bool)
-    bin_mat = sp.vstack([tmp, bin_mat, tmp], format=mat.format)
-    tmp = sp.csr_matrix((ms + 2 * (win_size - 1), win_size - 1), dtype=bool)
-    bin_mat = sp.hstack([tmp, bin_mat, tmp], format=mat.format)
+    tmp = sp.sparse.csr_matrix((win_size - 1, ns), dtype=bool)
+    bin_mat = sp.sparse.vstack([tmp, bin_mat, tmp], format=mat.format)
+    tmp = sp.sparse.csr_matrix(
+        (ms + 2 * (win_size - 1), win_size - 1), dtype=bool
+    )
+    bin_mat = sp.sparse.hstack([tmp, bin_mat, tmp], format=mat.format)
     # Convolve the uniform kernel with this matrix to get the proportion of
     # nonzero pixels in each neighbourhood
     kernel = np.ones((win_size, win_size))
@@ -508,7 +517,9 @@ def get_win_density(
     # Compute convolution of uniform kernel with a frame of ones to get number
     # of missing pixels in each window.
     frame = cup.frame_missing_mask(
-        sp.csr_matrix(mat.shape, dtype=bool), kernel.shape, sym_upper=sym_upper
+        sp.sparse.csr_matrix(mat.shape, dtype=bool),
+        kernel.shape,
+        sym_upper=sym_upper,
     )
     frame = cud.xcorr2(frame, kernel).tocoo()
     # From now on, frame.data contains the number of 'present' samples. (where
@@ -524,7 +535,7 @@ def get_win_density(
         win_size - 1 : -win_size + 1, win_size - 1 : -win_size + 1
     ]
     if sym_upper:
-        density = sp.triu(density)
+        density = sp.sparse.triu(density)
     return density
 
 
@@ -618,11 +629,11 @@ def is_symmetric(M: "scipy.sparse.csr_matrix") -> bool:
     Example
     -------
         >>> import numpy as np
-        >>> import scipy.sparse as ssp
-        >>> M = ssp.csr_matrix(np.array([[0, 0, 1], [0, 1, 0], [0, 0, 1]]))
+        >>> import scipy as sp
+        >>> M = sp.sparse.csr_matrix(np.array([[0, 0, 1], [0, 1, 0], [0, 0, 1]]))
         >>> is_symmetric(M)
         False
-        >>> M = ssp.csr_matrix(np.array([[0, 0, 1], [0, 1, 0], [1, 0, 0]]))
+        >>> M = sp.sparse.csr_matrix(np.array([[0, 0, 1], [0, 1, 0], [1, 0, 0]]))
         >>> is_symmetric(M)
         True
     """
@@ -695,7 +706,7 @@ def mask_white_line(
     """
 
     def mad(x):
-        return st.median_absolute_deviation(x, nan_policy="omit")
+        return sp.stats.median_absolute_deviation(x, nan_policy="omit")
 
     # Compute number of nonzero values in each bin
     sum_bins = (matrix == 0).sum(axis=0)
@@ -708,3 +719,42 @@ def mask_white_line(
     bad_bins = np.flatnonzero(sum_bins >= detect_threshold)
 
     return bad_bins
+
+
+def ratio_inter_cool(clr):
+    """Compute the ratio of inter/intra contacts of non balanced cooler object.
+
+    Parameters
+    ----------
+    clr : cooler.api.Cooler
+        Cooler matrix stored in cooler object. It doesn't need to be normalized.
+
+    Return
+    ------
+    float:
+        Ratio of the inter DNA sequences contacts (interchromosomic contact for
+        most of the case).
+    """
+
+    # Import binning size and matrix.
+    binning = clr.info["bin-size"]
+    mat = clr.matrix(balance=False)[:]
+    total = np.nansum(mat)
+
+    # Initialize.
+    intra = 0
+    cumul_length = 0
+    # Compute intra sum for each DNA sequence (chromosome).
+    for length in clr.chroms()[:].length:
+        length = math.ceil(length / binning)
+        intra += np.nansum(
+            mat[
+                cumul_length : cumul_length + length,
+                cumul_length : cumul_length + length,
+            ]
+        )
+        end = cumul_length + length
+        cumul_length += length
+
+    # Compute the inter ratio
+    return (total - intra) / total
