@@ -16,6 +16,7 @@ Functions:
 
 
 import cooler
+import math
 import matplotlib.pyplot as plt
 import numpy as np
 import re
@@ -266,7 +267,7 @@ def contact_map(
     axis: str = "kb",
     binning: int = 1,
     cmap: str = "Reds",
-    dpi: int = 300,
+    dpi: int = 100,
     end: int = 0,
     out_file: Optional[str] = None,
     chrom_starts: Optional[List[int]] = None,
@@ -290,7 +291,7 @@ def contact_map(
     cmap : str
         Colormap used. [Default: 'Reds']
     dpi : int
-        Dpi used. [Default: 300]
+        Dpi used. [Default: 100]
     end : int
         End position in bins of the region to plot. If none given, it will plot
         until the end of the matrix.
@@ -342,9 +343,10 @@ def contact_map(
     if chrom_starts is not None:
         li_kwargs = {'ls': ':', 'alpha': 0.5, 'c': 'black'}
         for pos in chrom_starts:
-            pos = (pos // binning) * scaling_factor
-            ax.axvline(pos, **li_kwargs)
-            ax.axhline(pos, **li_kwargs)
+            if pos > 0:
+                pos = (pos // binning) * scaling_factor
+                ax.axvline(pos, **li_kwargs)
+                ax.axhline(pos, **li_kwargs)
 
     # Legend
     ax.set_xlabel(f"Genomic coordinates ({axis:s})", fontsize=16)
@@ -361,6 +363,7 @@ def contact_map(
 
     # Savefig
     if out_file is not None:
+        print(out_file)
         plt.savefig(out_file, dpi=dpi, bbox_inches="tight")
 
 
@@ -477,7 +480,7 @@ def contact_map_ratio(
         plt.savefig(out_file, dpi=dpi)
 
 
-def get_chrom_start(cool_file: str):
+def get_chrom_start(cool_file: str, binning : int):
     """Function to get the start positiosn of chromosomes in cumulative base 
     pair from a cool file.
 
@@ -491,6 +494,7 @@ def get_chrom_start(cool_file: str):
     ------
     mumpy.ndarray:
         List of the start positiosn of chromosomes in cumulative base pair.
+    binning in base pair
     """
     # Import chroms from cool.
     cool = cooler.Cooler(f'{cool_file}')
@@ -501,7 +505,7 @@ def get_chrom_start(cool_file: str):
     cumul_length = 0
     for i, length in enumerate(chroms.length):
         chrom_starts[i] = cumul_length
-        cumul_length += length
+        cumul_length += math.ceil(length / binning) * binning
     return chrom_starts
 
 
