@@ -40,7 +40,7 @@ def directional_index(
     normalize : bool
         If enables normalize the matrix first. [Default: False].
     plot_dir : directory
-        Directory to save plot if one given.s
+        Directory to save plot if one givens.
 
     Returns
     -------
@@ -88,7 +88,7 @@ def directional_index(
     return di
 
 
-def di_borders(di: List[float]) -> List[float]:
+def di_borders(di: List[float], threshold=1.96) -> List[float]:
     """Function to return the list of borders based on the directional index
     vector. Threshold chosen at 1.96 to have a p-value below 0.05. As the
     directional index is a t-value, a value below -1.96 or above 1.96 will have
@@ -98,12 +98,14 @@ def di_borders(di: List[float]) -> List[float]:
     ----------
     di : numpy.ndarray
         List of the directional index computed for each bin.
+    threshold : int
+        t-value threshold to consider a border.
 
     Returns
     -------
     list of int:
         Positions in bins of the detected borders.
-    
+
     Example
     -------
         >>> di = [0.5, 2., 3., 4., 0.1, -3.2, -3.5, 0.]
@@ -116,16 +118,16 @@ def di_borders(di: List[float]) -> List[float]:
     # Initiation use last value as previous one as the genome is considered as
     # circular.
     borders = []
-    if di[-1] < -1.96:
+    if di[-1] < -threshold:
         negative = True
     else:
         negative = False
 
     # Iterates on the DI values
     for i, curr_di in enumerate(di):
-        if curr_di >= 1.96 and negative:
+        if curr_di >= threshold and negative:
             borders.append(i)
             negative = False
-        if curr_di <= -1.96:
+        if curr_di <= -threshold:
             negative = True
     return borders
