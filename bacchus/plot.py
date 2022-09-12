@@ -341,7 +341,7 @@ def contact_map(
 
     # Lines
     if chrom_starts is not None:
-        li_kwargs = {'ls': ':', 'alpha': 0.5, 'c': 'black'}
+        li_kwargs = {"ls": ":", "alpha": 0.5, "c": "black"}
         for pos in chrom_starts:
             if pos > 0:
                 pos = (pos // binning) * scaling_factor
@@ -480,8 +480,8 @@ def contact_map_ratio(
         plt.savefig(out_file, dpi=dpi)
 
 
-def get_chrom_start(cool_file: str, binning : int):
-    """Function to get the start positiosn of chromosomes in cumulative base 
+def get_chrom_start(cool_file: str, binning: int):
+    """Function to get the start positiosn of chromosomes in cumulative base
     pair from a cool file.
 
     Parameters
@@ -489,7 +489,7 @@ def get_chrom_start(cool_file: str, binning : int):
 
     cool_file : str
         Path to the cool file.
-    
+
     Return
     ------
     mumpy.ndarray:
@@ -497,7 +497,7 @@ def get_chrom_start(cool_file: str, binning : int):
     binning in base pair
     """
     # Import chroms from cool.
-    cool = cooler.Cooler(f'{cool_file}')
+    cool = cooler.Cooler(f"{cool_file}")
     chroms = cool.chroms()[:]
 
     # Create chrom_starts list

@@ -16,7 +16,9 @@ from typing import List
 
 
 def compute_antidiagonal(
-    M: "numpy.ndarray", full: bool = True
+    M: "numpy.ndarray",
+    full: bool = True,
+    ignore_diags: int = 2,
 ) -> "numpy.ndarray":
     """Function to compute all the antidiagonal strength centered on the origin
     to be able to evaluate the strength of the antidiagonal passing through the
@@ -31,6 +33,8 @@ def compute_antidiagonal(
         only on half the antidiagonal. The first one will give you a "symetric"
         profile as all antidiagonals pass through two genomic coordinates, the
         second one will not be symmetric.
+    ignore_diags : int
+        Number of main diagonals to ignore.
 
     Returns
     -------
@@ -41,6 +45,9 @@ def compute_antidiagonal(
     # Compute the size of the matrix and rotate it to have the antidiagonal as
     # the primary diagonal.
     n = np.shape(M)[0]
+    for i in range(n):
+        for j in range(i - ignore_diags + 1, i + ignore_diags):
+            M[i, j] = 0
     N = np.rot90(M)
 
     # If full compute all the antidiagonals strength and duplicate it for the
@@ -66,13 +73,16 @@ def compute_antidiagonal(
 
     # Normalize by the first percentile (not the minimum as there may is an
     # outsider) to have a basal value of 1 far away from the antidaiagonal.
-    values = values / np.nanpercentile(values, 1)
+    values = values / np.nanpercentile(values, 5)
 
     return values
 
 
 def compute_antidiagonal_scalogram(
-    M: "numpy.ndarray", binning: int, windows: List[int]
+    M: "numpy.ndarray",
+    binning: int,
+    windows: List[int],
+    ignore_diags: int = 2,
 ) -> "numpy.ndarray":
     """Function to compute all the antidiagonal strength centered on the origin
     to be able to evaluate the strength of the antidiagonal passing through the
@@ -87,6 +97,8 @@ def compute_antidiagonal_scalogram(
         Binning size in base pair.
     windows : List of int
         List of the windows size to takes in base pairs.
+    ignore_diags : int
+        Number of main diagonals to ignore.
 
     Returns
     -------
@@ -97,6 +109,9 @@ def compute_antidiagonal_scalogram(
     # Compute the size of the matrix and rotate it to have the antidiagonal as
     # the primary diagonal.
     n = np.shape(M)[0]
+    for i in range(n):
+        for j in range(i - ignore_diags + 1, i + ignore_diags):
+            M[i, j] = 0
     N = np.rot90(M)
 
     # Transform windows and origin position in bin coordinates.
@@ -115,7 +130,7 @@ def compute_antidiagonal_scalogram(
     for i in range(len(w_binned)):
         # Normalize by the first percentile (not the minimum as there may is an
         # outsider) to have a basal value of 1 far away from the antidaiagonal.
-        values[i] = values[i] / np.nanpercentile(values[-1], 1)
+        values[i] = values[i] / np.nanpercentile(values[-1], 5)
 
     return values
 
