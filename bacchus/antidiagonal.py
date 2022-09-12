@@ -51,10 +51,10 @@ def compute_antidiagonal(
         # antidiagonals a poistion n-i and i.
         values = np.zeros((n))
         for i in range(-n + 1, 0, 1):
-            values[n + i - 1] = np.nansum(
+            values[n + i - 1] = np.nanmean(
                 np.concatenate((np.diag(N, k=i), np.diag(N, k=n + i)))
             )
-        values[n - 1] = np.nansum(np.diag(N, k=0))
+        values[n - 1] = np.nanmean(np.diag(N, k=0))
 
         # Concatenate the vector too cover all the genomic positions as we take
         # the whole antidiagonals, each of them are equivalent to the opposite
@@ -153,14 +153,14 @@ def compute_partial_antidiagonal(N: "numpy.ndarray", s: int) -> "numpy.ndarray":
         l1 = len(diag1)
         l2 = len(diag2)
         if l1 >= 2 * s:
-            values[n + i - 1] = np.nansum(diag1[l1 // 2 - s : l1 // 2 + s])
+            values[n + i - 1] = np.nanmean(diag1[l1 // 2 - s : l1 // 2 + s])
         else:
-            values[n + i - 1] = np.nansum(
+            values[n + i - 1] = np.nanmean(
                 np.concatenate(
                     (diag1, diag2[: s - l1 // 2], diag2[l2 - s + l1 // 2 :])
                 )
             )
-    values[n - 1] = np.nansum(diag0[n // 2 - s : n // 2 + s])
+    values[n - 1] = np.nanmean(diag0[n // 2 - s : n // 2 + s])
 
     # Iterates on right half of the antidiagonals (positive coordinates).
     for i in range(1, n, 1):
@@ -169,12 +169,12 @@ def compute_partial_antidiagonal(N: "numpy.ndarray", s: int) -> "numpy.ndarray":
         l1 = len(diag1)
         l2 = len(diag2)
         if l1 >= 2 * s:
-            values[n - 1 + i] = np.nansum(diag1[l1 // 2 - s : l1 // 2 + s])
+            values[n - 1 + i] = np.nanmean(diag1[l1 // 2 - s : l1 // 2 + s])
         else:
-            values[n - 1 + i] = np.nansum(
+            values[n - 1 + i] = np.nanmean(
                 np.concatenate(
                     (diag1, diag2[: s - l1 // 2], diag2[l2 - s + l1 // 2 :])
                 )
             )
-    values[2 * n - 1] = np.nansum(np.concatenate((diag0[:s], diag0[n - s :])))
+    values[2 * n - 1] = np.nanmean(np.concatenate((diag0[:s], diag0[n - s :])))
     return values

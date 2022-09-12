@@ -193,7 +193,7 @@ def extract_big_wig(
         length += math.ceil(tab.chroms()[name] / binning)
 
     # Defined final vector of values.
-    binned_values = np.zeros((length))
+    binned_values = np.zeros((length + 1))
 
     for name in tab.chroms():
         # Defined start position of the chromosome in the final binned vector.
