@@ -731,9 +731,10 @@ def ratio_inter_cool(clr):
 
     Return
     ------
-    float:
-        Ratio of the inter DNA sequences contacts (interchromosomic contact for
-        most of the case).
+    int:
+        Number of intra contacts.
+    int:
+        Number of inter contacts.
     """
 
     # Import binning size and matrix.
@@ -756,5 +757,7 @@ def ratio_inter_cool(clr):
         end = cumul_length + length
         cumul_length += length
 
-    # Compute the inter ratio
-    return (total - intra) / total
+    # Compute the inter numbers of contact
+    inter = total - intra
+
+    return intra, inter 

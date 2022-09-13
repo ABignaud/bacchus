@@ -111,7 +111,8 @@ def compute_antidiagonal_scalogram(
     n = np.shape(M)[0]
     for i in range(n):
         for j in range(i - ignore_diags + 1, i + ignore_diags):
-            M[i, j] = 0
+            if (j >= 0) and (j < n):
+                M[i, j] = 0
     N = np.rot90(M)
 
     # Transform windows and origin position in bin coordinates.
