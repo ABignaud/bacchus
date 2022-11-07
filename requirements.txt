@@ -2,3 +2,4 @@ chromosight
 hicreppy
 hicstuff
 seaborn
+scipy>1.5.0

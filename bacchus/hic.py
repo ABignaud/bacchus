@@ -511,7 +511,7 @@ def get_win_density(
     # Convolve the uniform kernel with this matrix to get the proportion of
     # nonzero pixels in each neighbourhood
     kernel = np.ones((win_size, win_size))
-    win_area = win_size ** 2
+    win_area = win_size**2
     density = cud.xcorr2(bin_mat, kernel / win_area)
 
     # Compute convolution of uniform kernel with a frame of ones to get number
@@ -565,16 +565,13 @@ def interpolate_white_lines(M: "numpy.ndarray") -> "numpy.ndarray":
 
     # Detect white lines shifted of one to keep only single white lines.
     N2 = map_extend(N, 1)
-    mask = (
-        np.sum(
-            np.logical_or(
-                np.logical_and((N2 == 0)[:-2, :-2], N == 0),
-                np.logical_and((N2 == 0)[2:, 2:], N == 0),
-            ),
-            axis=1,
-        )
-        == len(N)
-    )
+    mask = np.sum(
+        np.logical_or(
+            np.logical_and((N2 == 0)[:-2, :-2], N == 0),
+            np.logical_and((N2 == 0)[2:, 2:], N == 0),
+        ),
+        axis=1,
+    ) == len(N)
 
     # Put values to nan to avoid to use them as mean.
     N_tmp[zeros] = np.nan
@@ -706,7 +703,7 @@ def mask_white_line(
     """
 
     def mad(x):
-        return sp.stats.median_absolute_deviation(x, nan_policy="omit")
+        return sp.stats.median_abs_deviation(x, nan_policy="omit")
 
     # Compute number of nonzero values in each bin
     sum_bins = (matrix == 0).sum(axis=0)
@@ -760,4 +757,4 @@ def ratio_inter_cool(clr):
     # Compute the inter numbers of contact
     inter = total - intra
 
-    return intra, inter 
+    return intra, inter
