@@ -510,7 +510,10 @@ def get_chrom_start(cool_file: str, binning: int):
 
 
 def hicreppy_plot(
-    data: "numpy.ndarray", labels: Optional[List[str]], out_file: Optional[str]
+    data: "numpy.ndarray",
+    labels: Optional[List[str]],
+    out_file: Optional[str],
+    cmap: str = "bwr",
 ):
     """Function to plot the correlation matrix from hicreppy.
 
@@ -523,6 +526,8 @@ def hicreppy_plot(
     out_file : str
         Path were to write the output plots. Extension should be compatible with
         savefig.
+    cmap : str
+        Colormap used in the plot.
     """
     # If no labels were given, just create a list of index (1-based).
     if labels is None:
@@ -532,7 +537,7 @@ def hicreppy_plot(
     sns.set(font_scale=1)
     ax = sns.clustermap(
         data=data,
-        cmap="Reds",
+        cmap=cmap,
         xticklabels=labels,
         yticklabels=labels,
         row_cluster=True,
