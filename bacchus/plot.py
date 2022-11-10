@@ -7,9 +7,11 @@ around bacterial HiC experiments analysis.
 Functions:
     - antidiagonal_plot
     - antidiagonal_scalogram
+    - cluster_corr
     - contact_map
     - contact_map_ratio
     - hicreppy_plot
+    - hicreppy_plot_jack
     - parse_axis_str
     - pileup_plot
 """
@@ -19,7 +21,10 @@ import cooler
 import math
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import re
+import scipy
+import scipy.cluster.hierarchy as sch
 import seaborn as sns
 from typing import List, Optional
 
@@ -260,6 +265,40 @@ def antidiagonal_scalogram(
     # Savefig if necessary
     if out_file is not None:
         plt.savefig(out_file, dpi=dpi)
+
+
+def cluster_corr(corr_array: "numpy.ndarray", inplace: bool = False):
+    """
+    Rearranges the correlation matrix, corr_array, so that groups of highly
+    correlated variables are next to each other.
+    Function from https://wil.yegelwel.com/cluster-correlation-matrix/.
+
+    Parameters
+    ----------
+    corr_array : pandas.DataFrame or numpy.ndarray
+        a NxN correlation matrix.
+
+    Returns
+    -------
+    numpy.ndarray:
+        Reordered index.
+    pandas.DataFrame or numpy.ndarray:
+        a NxN correlation matrix with the columns and rows rearranged.
+    """
+    pairwise_distances = sch.distance.pdist(corr_array)
+    linkage = sch.linkage(pairwise_distances, method="complete")
+    cluster_distance_threshold = pairwise_distances.max() / 2
+    idx_to_cluster_array = sch.fcluster(
+        linkage, cluster_distance_threshold, criterion="distance"
+    )
+    idx = np.argsort(idx_to_cluster_array)
+
+    if not inplace:
+        corr_array = corr_array.copy()
+
+    if isinstance(corr_array, pd.DataFrame):
+        return corr_array.iloc[idx, :].T.iloc[idx, :]
+    return idx, corr_array[idx, :][:, idx]
 
 
 def contact_map(
@@ -554,6 +593,75 @@ def hicreppy_plot(
         plt.savefig(out_file, dpi=100)
 
 
+def hicreppy_plot_jack(
+    data: "numpy.ndarray",
+    labels: Optional[List[str]],
+    out_file: Optional[str],
+    cmap: str = "bwr",
+):
+    """Function to plot the correlation matrix from hicreppy.
+    Designed by Jack Serizay.
+    Parameters
+    ----------
+    data : numpy.ndarray
+        Matrix of the stratum corelation coefficient from hicreppy.
+    labels : list of str
+        List of the string to use as labels.
+    out_file : str
+        Path were to write the output plots. Extension should be compatible with
+        savefig.
+    cmap : str
+        Colormap used in the plot.
+    """
+    # Reorder data
+    order, data_reorder = cluster_corr(data)
+
+    # If no labels were given, just create a list of index (1-based).
+    if labels is None:
+        labels = [str(x) for x in np.arange(1, len(data) + 1)]
+    labels_reorder = [labels[i] for i in order]
+
+    # Prepare vectors for plot.
+    n = np.shape(data)[0]
+    x = np.arange(0, n * n, 1) % n + 1
+    y = np.repeat(np.arange(n, 0, -1), n)
+    values = np.zeros(n**2)
+    for i in range(n):
+        for j in range(n):
+            values[i * n + j] = data_reorder[i, j] ** 20
+    values[np.where(values == 1)] = 0
+
+    # Plot figure
+    fig, ax = plt.subplots(1, 1, figsize=(n // 2, n // 2))
+    sc = ax.scatter(
+        x,
+        y,
+        marker=",",
+        s=values * 500,
+        c=values,
+        cmap=cmap,
+        edgecolors="#353535",
+        linewidth=2,
+        vmax=1,
+        vmin=0,
+    )
+    ax.set_xlim(0.5, n + 0.5)
+    ax.set_ylim(0.5, n + 0.5)
+    ax.set_xticks(np.arange(1, 9, 1), labels=labels_reorder, rotation=90)
+    ax.set_yticks(np.arange(8, 0, -1), labels=labels_reorder, rotation=0)
+    ax.set(facecolor="white")
+    ax.xaxis.tick_top()
+
+    # Set colorbar
+    cax = make_square_axes_with_colorbar(ax, size=0.15, pad=0.1)
+    cb = plt.colorbar(sc, cax=cax)
+    cb.outline.set_color("black")
+
+    # Save figure if an outfile is given.
+    if out_file is not None:
+        plt.savefig(out_file, dpi=100, bbox_inches="tight")
+
+
 def parse_axis_str(axis: str) -> float:
     """Axis string parsing
 
@@ -734,3 +842,42 @@ def pileup_plot(
     # Save figure if an outfile is given.
     if out_file is not None:
         plt.savefig(out_file, dpi=dpi)
+
+
+# Functions from https://github.com/matplotlib/matplotlib/issues/15010 to keep
+# the colorbar without deforming the plot.
+from matplotlib.transforms import Bbox
+from mpl_toolkits.axes_grid1 import make_axes_locatable, axes_size
+
+
+class RemainderFixed(axes_size.Scaled):
+    def __init__(self, xsizes, ysizes, divider):
+        self.xsizes = xsizes
+        self.ysizes = ysizes
+        self.div = divider
+
+    def get_size(self, renderer):
+        xrel, xabs = axes_size.AddList(self.xsizes).get_size(renderer)
+        yrel, yabs = axes_size.AddList(self.ysizes).get_size(renderer)
+        bb = Bbox.from_bounds(*self.div.get_position()).transformed(
+            self.div._fig.transFigure
+        )
+        w = bb.width / self.div._fig.dpi - xabs
+        h = bb.height / self.div._fig.dpi - yabs
+        return 0, min([w, h])
+
+
+def make_square_axes_with_colorbar(ax, size=0.1, pad=0.1):
+    """Make an axes square, add a colorbar axes next to it,
+    Parameters: size: Size of colorbar axes in inches
+                pad : Padding between axes and cbar in inches
+    Returns: colorbar axes
+    """
+    divider = make_axes_locatable(ax)
+    margin_size = axes_size.Fixed(size)
+    pad_size = axes_size.Fixed(pad)
+    xsizes = [pad_size, margin_size]
+    yhax = divider.append_axes("right", size=margin_size, pad=pad_size)
+    divider.set_horizontal([RemainderFixed(xsizes, [], divider)] + xsizes)
+    divider.set_vertical([RemainderFixed(xsizes, [], divider)])
+    return yhax
