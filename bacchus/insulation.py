@@ -190,7 +190,7 @@ def detect_final_borders(
     peaks = ss.find_peaks(lri_score)[0]
 
     # Define a cutoff as the median plus one time the standard deviation.
-    cutoff = np.nanmedian(lri_score)  # + np.nanstd(lri_score)
+    cutoff = np.nanmedian(lri_score) + np.nanstd(lri_score)
 
     # Append peaks in final borders if there are bigger than the cutoff and far
     # enough from each other.
