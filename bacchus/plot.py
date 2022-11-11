@@ -647,8 +647,8 @@ def hicreppy_plot_jack(
     )
     ax.set_xlim(0.5, n + 0.5)
     ax.set_ylim(0.5, n + 0.5)
-    ax.set_xticks(np.arange(1, 9, 1), labels=labels_reorder, rotation=90)
-    ax.set_yticks(np.arange(8, 0, -1), labels=labels_reorder, rotation=0)
+    ax.set_xticks(np.arange(1, n + 1, 1), labels=labels_reorder, rotation=90)
+    ax.set_yticks(np.arange(n, 0, -1), labels=labels_reorder, rotation=0)
     ax.set(facecolor="white")
     ax.xaxis.tick_top()
 
