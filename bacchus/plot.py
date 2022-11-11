@@ -628,7 +628,7 @@ def hicreppy_plot_jack(
     values = np.zeros(n**2)
     for i in range(n):
         for j in range(n):
-            values[i * n + j] = data_reorder[i, j] ** 20
+            values[i * n + j] = data_reorder[i, j]
     values[np.where(values == 1)] = 0
 
     # Plot figure
