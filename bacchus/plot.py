@@ -598,6 +598,7 @@ def hicreppy_plot_jack(
     labels: Optional[List[str]],
     out_file: Optional[str],
     cmap: str = "bwr",
+    vmin: float = 0,
 ):
     """Function to plot the correlation matrix from hicreppy.
     Designed by Jack Serizay.
@@ -612,6 +613,8 @@ def hicreppy_plot_jack(
         savefig.
     cmap : str
         Colormap used in the plot.
+    vmin : float
+        Minimum of the colorscale. Value between 0 and 1.
     """
     # Reorder data
     order, data_reorder = cluster_corr(data)
@@ -637,13 +640,13 @@ def hicreppy_plot_jack(
         x,
         y,
         marker=",",
-        s=values * 500,
+        s=((values -v min) / (1 - vmin)) * 500,
         c=values,
         cmap=cmap,
         edgecolors="#353535",
         linewidth=2,
         vmax=1,
-        vmin=0,
+        vmin=vmin,
     )
     ax.set_xlim(0.5, n + 0.5)
     ax.set_ylim(0.5, n + 0.5)
