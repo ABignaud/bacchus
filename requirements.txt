@@ -1,5 +1,6 @@
 chromosight
 hicreppy
 hicstuff
+pyBigWig
 seaborn
 scipy>1.5.0
