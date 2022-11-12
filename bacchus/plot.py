@@ -640,7 +640,7 @@ def hicreppy_plot_jack(
         x,
         y,
         marker=",",
-        s=((values -v min) / (1 - vmin)) * 500,
+        s=((values - vmin) / (1 - vmin)) * 500,
         c=values,
         cmap=cmap,
         edgecolors="#353535",
