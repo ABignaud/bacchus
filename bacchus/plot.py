@@ -144,6 +144,8 @@ def antidiagonal_scalogram(
     out_file: Optional[str] = None,
     pars_pos: Optional[List[int]] = None,
     title: Optional[str] = None,
+    ymin: float = 0.5,
+    ymax: float = 5.0,
 ):
     """Function to plot the antidiagonal scalogram strength of one bacteria.
 
@@ -167,6 +169,10 @@ def antidiagonal_scalogram(
         List of the positions of the parS sites in base pair.
     title : str
         Name of the plot if one given.
+    ymin : float
+        Min value to put on y axis plot, [Default: .5].
+    ymax : float
+        Max value to put on y axis plot, [Default: 5.].
     """
     # Defines the scaling factor for x axis.
     if binning > 1:
@@ -250,12 +256,12 @@ def antidiagonal_scalogram(
     # Plot the antidiagonals strength.
     for i in range(len(values)):
         y = np.concatenate((values[i][start:], values[i][:start]))
-        ax.plot(x, y, linewidth=0.7, color=color[i], label=labels[i], alpha=0.5)
+        ax.plot(x, y, linewidth=0.7, color=color[i], label=labels[i], alpha=0.8)
 
     # Legend
     ax.set_xlabel(f"Genomic coordinates {axis:s}", fontsize=16)
     ax.set_ylabel("Antidiagonal strength", fontsize=16)
-    ax.set_ylim(0.5, 5)
+    ax.set_ylim(ymin, ymax)
     ax.tick_params(size=16)
     if title is not None:
         ax.set_title(title, size=18)
