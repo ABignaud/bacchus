@@ -120,7 +120,7 @@ def get_local_score(
     first_enveloppe_index = np.concatenate(
         ([0], first_enveloppe_index, [len(ri_score) - 1])
     )
-    first_enveloppe = [ri_score[i] for i in first_enveloppe_index]
+    first_enveloppe = [ri_score[int(i)] for i in first_enveloppe_index]
     # Possible as the genome is circular
     a = np.mean([first_enveloppe[1], first_enveloppe[-2]])
     first_enveloppe[0] = a
@@ -134,7 +134,7 @@ def get_local_score(
     second_enveloppe_index = np.concatenate(
         ([0], second_enveloppe_index, [len(ri_score) - 1])
     )
-    second_enveloppe = [ri_score[i] for i in second_enveloppe_index]
+    second_enveloppe = [ri_score[int(i)] for i in second_enveloppe_index]
 
     # Possible as the genome is circular
     a = np.mean([second_enveloppe[1], second_enveloppe[-2]])
