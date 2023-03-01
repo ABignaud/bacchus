@@ -736,8 +736,8 @@ def ratio_inter_cool(clr):
 
     # Import binning size and matrix.
     binning = clr.info["bin-size"]
-    mat = clr.matrix(balance=False)[:]
-    total = np.nansum(mat)
+    mat = np.triu(clr.matrix(balance=False)[:])
+    total = clr.info["sum"]
 
     # Initialize.
     intra = 0
@@ -751,7 +751,6 @@ def ratio_inter_cool(clr):
                 cumul_length : cumul_length + length,
             ]
         )
-        end = cumul_length + length
         cumul_length += length
 
     # Compute the inter numbers of contact
