@@ -10,6 +10,7 @@ Functions:
     - cluster_corr
     - contact_map
     - contact_map_ratio
+    - get_chrom_start
     - hicreppy_plot
     - hicreppy_plot_jack
     - parse_axis_str
@@ -97,10 +98,7 @@ def antidiagonal_plot(
                 elif pars < (-size // 4) * binning * scaling_factor:
                     pars += (size // 2) * binning * scaling_factor
                 pars_line = ax.axvline(
-                    x=pars,
-                    linewidth=1,
-                    color="red",
-                    linestyle="dashed",
+                    x=pars, linewidth=1, color="red", linestyle="dashed",
                 )
             pars_line.set_label("parS")
 
@@ -225,10 +223,7 @@ def antidiagonal_scalogram(
                 elif pars < (-size // 4) * binning * scaling_factor:
                     pars += (size // 2) * binning * scaling_factor
                 pars_line = ax.axvline(
-                    x=pars,
-                    linewidth=1,
-                    color="red",
-                    linestyle="dashed",
+                    x=pars, linewidth=1, color="red", linestyle="dashed",
                 )
             # pars_line.set_label("parS")
 
@@ -634,7 +629,7 @@ def hicreppy_plot_jack(
     n = np.shape(data)[0]
     x = np.arange(0, n * n, 1) % n + 1
     y = np.repeat(np.arange(n, 0, -1), n)
-    values = np.zeros(n**2)
+    values = np.zeros(n ** 2)
     for i in range(n):
         for j in range(n):
             values[i * n + j] = data_reorder[i, j]
@@ -715,6 +710,7 @@ def pileup_plot(
     out_file: Optional[str] = None,
     title: Optional[str] = None,
     dpi: int = 100,
+    vmax: Optional[float] = None,
 ):
     """Function to plot pileup of genes.
 
@@ -745,6 +741,8 @@ def pileup_plot(
         Title of the plot.
     dpi : int
         Dpi to plot the figure.
+    vmax : float
+        Value to use as maximum and minimum values to plot the pileup.
     """
 
     # If one control is given make the the difference.
@@ -815,16 +813,15 @@ def pileup_plot(
         else:
             pax.set_xlabel("Genomic distance (bin)", fontsize=15)
 
+    if vmax is None:
+        vmax = np.nanpercentile(np.abs(pileup), 95)
+
     # Plot the pileup contact map.
     im = pax.imshow(
         pileup,
         cmap="seismic",
-        vmin=-np.nanpercentile(
-            np.abs(pileup), 95
-        ),  # min(-0.0005, -np.nanpercentile(pileup, 99.5)),
-        vmax=np.nanpercentile(
-            np.abs(pileup), 95
-        ),  # max(0.0005, np.nanpercentile(pileup, 99.5)),
+        vmin=-vmax,
+        vmax=vmax,
         extent=[-window_plot, window_plot, window_plot, -window_plot],
     )
     pax.axvline(0, color="black", linestyle="dashed", linewidth=1.5, alpha=0.4)
