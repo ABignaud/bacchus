@@ -16,7 +16,7 @@ To install this repository run the following commands:
 ```bash  
 git clone https://github.com/ABignaud/bacchus.git
 cd bacchus
-pip install .
+pip install -e .
 ```
 
 ## Usage
