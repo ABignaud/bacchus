@@ -98,7 +98,10 @@ def antidiagonal_plot(
                 elif pars < (-size // 4) * binning * scaling_factor:
                     pars += (size // 2) * binning * scaling_factor
                 pars_line = ax.axvline(
-                    x=pars, linewidth=1, color="red", linestyle="dashed",
+                    x=pars,
+                    linewidth=1,
+                    color="red",
+                    linestyle="dashed",
                 )
             pars_line.set_label("parS")
 
@@ -223,7 +226,10 @@ def antidiagonal_scalogram(
                 elif pars < (-size // 4) * binning * scaling_factor:
                     pars += (size // 2) * binning * scaling_factor
                 pars_line = ax.axvline(
-                    x=pars, linewidth=1, color="red", linestyle="dashed",
+                    x=pars,
+                    linewidth=1,
+                    color="red",
+                    linestyle="dashed",
                 )
             # pars_line.set_label("parS")
 
@@ -314,6 +320,7 @@ def contact_map(
     start: int = 0,
     title: Optional[str] = None,
     vmax: float = 99,
+    zmax: Optional[float] = None,
 ):
     """Function to plot a matrix or a region of this matrix.
 
@@ -349,6 +356,8 @@ def contact_map(
         Title to put on the plot. If none given, do not put any title.
     vmax : float
         Value of the percentile used for the clorscale.
+    zmax : float
+        Value to used as max for the colorscale.
 
     TODO: adapt it for multiple chromosomes maps
     """
@@ -365,12 +374,16 @@ def contact_map(
     if end == 0:
         end = len(mat)
 
+    if zmax is not None:
+        val_max = zmax
+    else:
+        val_max = np.nanpercentile(mat, vmax)
     # Display plots
     im = ax.imshow(
         mat[start:end, start:end],
         cmap=cmap,
         vmin=0,
-        vmax=np.nanpercentile(mat, vmax),
+        vmax=val_max,
         extent=(
             start * scaling_factor,
             end * scaling_factor,
@@ -629,7 +642,7 @@ def hicreppy_plot_jack(
     n = np.shape(data)[0]
     x = np.arange(0, n * n, 1) % n + 1
     y = np.repeat(np.arange(n, 0, -1), n)
-    values = np.zeros(n ** 2)
+    values = np.zeros(n**2)
     for i in range(n):
         for j in range(n):
             values[i * n + j] = data_reorder[i, j]
