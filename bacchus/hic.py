@@ -572,6 +572,8 @@ def interpolate_white_lines(M: "numpy.ndarray") -> "numpy.ndarray":
         ),
         axis=1,
     ) == len(N)
+    zeros = np.sum(N, axis=1) == 0
+    print(zeros)
 
     # Put values to nan to avoid to use them as mean.
     N_tmp[zeros] = np.nan
@@ -605,8 +607,8 @@ def interpolate_white_lines(M: "numpy.ndarray") -> "numpy.ndarray":
                     ]
                 )
     # Put back the mask on the values which have multiple white lines.
-    N[mask] = 0
-    N[:, mask] = 0
+    # N[mask] = 0
+    # N[:, mask] = 0
     return N
 
 

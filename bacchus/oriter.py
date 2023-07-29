@@ -97,8 +97,8 @@ def detect_ori_ter(
     # Take the circularity into account
     if pars_opp_pos > genome_size:
         pars_opp_pos - genome_size
-    diff_ori = 10**12
-    diff_ter = 10**12
+    diff_ori = 10 ** 12
+    diff_ter = 10 ** 12
     ori = pos_shift[0]
     ter = pos_shift[1]
     for pos in pos_shift:
@@ -119,9 +119,7 @@ def detect_ori_ter(
     return ori, ter
 
 
-def gc_skew_shift_detection(
-    data: "pandas.DataFrame",
-) -> Tuple[List[int], int]:
+def gc_skew_shift_detection(data: "pandas.DataFrame",) -> Tuple[List[int], int]:
     """Function to detect GC skew shift.
 
     Parameters:
@@ -156,29 +154,29 @@ def gc_skew_shift_detection(
             alpha = 100
             if i < alpha:
                 a = np.sum(
-                    [x / (abs(x) + 10**-12) for x in data.val[0:i]]
+                    [x / (abs(x) + 10 ** -12) for x in data.val[0:i]]
                 ) + np.sum(
-                    [x / (abs(x) + 10**-12) for x in data.val[n - i : n]]
+                    [x / (abs(x) + 10 ** -12) for x in data.val[n - i : n]]
                 )
                 b = np.sum(
-                    [x / (abs(x) + 10**-12) for x in data.val[i : i + alpha]]
+                    [x / (abs(x) + 10 ** -12) for x in data.val[i : i + alpha]]
                 )
             elif i + alpha > n - 1:
                 alpha = n - i - 1
                 a = np.sum(
-                    [x / (abs(x) + 10**-12) for x in data.val[i - alpha : i]]
+                    [x / (abs(x) + 10 ** -12) for x in data.val[i - alpha : i]]
                 )
                 b = np.sum(
-                    [x / (abs(x) + 10**-12) for x in data.val[i:n]]
+                    [x / (abs(x) + 10 ** -12) for x in data.val[i:n]]
                 ) + np.sum(
-                    [x / (abs(x) + 10**-12) for x in data.val[0 : n - i]]
+                    [x / (abs(x) + 10 ** -12) for x in data.val[0 : n - i]]
                 )
             else:
                 a = np.sum(
-                    [x / (abs(x) + 10**-12) for x in data.val[i - alpha : i]]
+                    [x / (abs(x) + 10 ** -12) for x in data.val[i - alpha : i]]
                 )
                 b = np.sum(
-                    [x / (abs(x) + 10**-12) for x in data.val[i : i + alpha]]
+                    [x / (abs(x) + 10 ** -12) for x in data.val[i : i + alpha]]
                 )
             if a * b < 0:
                 # Look for the middle of the inversion.

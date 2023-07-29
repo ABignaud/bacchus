@@ -249,8 +249,8 @@ def get_insulation_score(
     mask = bch.mask_white_line(matrix)
 
     # Change white lines in values close to 0 fro the correlation.
-    matrix[mask, :] = np.random.random_sample(matrix.shape[0]) / 10**6
-    matrix[:, mask] = np.random.random_sample(matrix.shape[0])[0] / 10**6
+    matrix[mask, :] = np.random.random_sample(matrix.shape[0]) / 10 ** 6
+    matrix[:, mask] = np.random.random_sample(matrix.shape[0])[0] / 10 ** 6
     matrix = np.corrcoef(matrix)
 
     # Transform them in nan to do not take them into account later.

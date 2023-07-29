@@ -50,10 +50,7 @@ def directional_index(
     # Compute the correlation coefficient matrix.
     if corr:
         M = bch.corr_matrix_sparse(
-            M,
-            detrend=False,
-            normalize=normalize,
-            plot_dir=plot_dir,
+            M, detrend=False, normalize=normalize, plot_dir=plot_dir,
         )
 
     # Compute thse size of the matrix.
