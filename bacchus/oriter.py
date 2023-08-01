@@ -150,23 +150,27 @@ def detect_ori_ter(
             if cov_data is not None:
                 min_cov, max_cov = 0, 0
                 ori, ter = None, None
-                for pos in gc_shift:
-                    if pos.chrom == chrom:
-                        local_cov = np.nanmean(
-                            remove_nmad(
-                                cov_data.values[pos.chrom][
-                                    pos.coord - stride : pos.coord + stride
-                                ]
+                try:
+                    cov_data.values[chrom]
+                    for pos in gc_shift:
+                        if pos.chrom == chrom:
+                            local_cov = np.nanmean(
+                                remove_nmad(
+                                    cov_data.values[pos.chrom][
+                                        pos.coord - stride : pos.coord + stride
+                                    ]
+                                )
                             )
-                        )
-                        if local_cov < min_cov or min_cov == 0:
-                            ter = pos.coord
-                            min_cov = local_cov
-                        elif local_cov > max_cov or max_cov == 0:
-                            ori = pos.coord
-                            max_cov = local_cov
-                if ori is None or ter is None:
-                    ori, ter = None, None
+                            if local_cov < min_cov or min_cov == 0:
+                                ter = pos.coord
+                                min_cov = local_cov
+                            elif local_cov > max_cov or max_cov == 0:
+                                ori = pos.coord
+                                max_cov = local_cov
+                    if ori is None or ter is None:
+                        ori, ter = None, None
+                except KeyError:  # Case no coverage on chrom.
+                    pass
                 pos_list.append(Position(chrom, ori, description="Ori"))
                 pos_list.append(Position(chrom, ter, description="Ter"))
     return pos_list
@@ -192,6 +196,8 @@ def gc_skew_shift_detection(
         List of the GC shift position.
     """
     data.columns = ["chr", "start", "end", "val"]
+    alpha = 100  # use 100 windows to average the inversion.
+
     # Look for step and window_size
     step = data.start[1] - data.start[0]
     window = data.end[0] - data.start[0] + 1
@@ -207,6 +213,9 @@ def gc_skew_shift_detection(
         # Subset data by chromosome.
         data_chrom = data.loc[data["chr"] == chrom]
         n = data_chrom.shape[0]
+        if n < alpha:  # Remove small chromosome (plasmides).
+            continue
+
         # If circular count a shift if one over the start/end of the chromosome.
         if circular:
             previous_value = data_chrom.val.iloc[n - 1]
@@ -219,7 +228,6 @@ def gc_skew_shift_detection(
             # Search for local inversion of GC skew
             if previous_value * current_value < 0:
                 # Check if global inversion or just a small one.
-                alpha = 100  # use 100 windows to average the inversion.
                 if i < alpha:  # Edge case too close to chrom start.
                     a = np.sum(
                         [
