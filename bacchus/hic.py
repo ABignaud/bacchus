@@ -511,7 +511,7 @@ def get_win_density(
     # Convolve the uniform kernel with this matrix to get the proportion of
     # nonzero pixels in each neighbourhood
     kernel = np.ones((win_size, win_size))
-    win_area = win_size**2
+    win_area = win_size ** 2
     density = cud.xcorr2(bin_mat, kernel / win_area)
 
     # Compute convolution of uniform kernel with a frame of ones to get number
@@ -669,18 +669,7 @@ def map_extend(M: "numpy.ndarray", s: int) -> "numpy.ndarray":
     n = len(M)
     # Concatenate the borders as the matrix to extend it playing on the circular
     # relations on both axis.
-    M = np.concatenate(
-        (
-            M[
-                n - s :,
-            ],
-            M,
-            M[
-                :s,
-            ],
-        ),
-        axis=0,
-    )
+    M = np.concatenate((M[n - s :,], M, M[:s,],), axis=0,)
     M = np.concatenate((M[:, n - s :], M, M[:, :s]), axis=1)
     return M
 

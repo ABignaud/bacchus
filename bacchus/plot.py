@@ -98,10 +98,7 @@ def antidiagonal_plot(
                 elif pars < (-size // 4) * binning * scaling_factor:
                     pars += (size // 2) * binning * scaling_factor
                 pars_line = ax.axvline(
-                    x=pars,
-                    linewidth=1,
-                    color="red",
-                    linestyle="dashed",
+                    x=pars, linewidth=1, color="red", linestyle="dashed",
                 )
             pars_line.set_label("parS")
 
@@ -226,10 +223,7 @@ def antidiagonal_scalogram(
                 elif pars < (-size // 4) * binning * scaling_factor:
                     pars += (size // 2) * binning * scaling_factor
                 pars_line = ax.axvline(
-                    x=pars,
-                    linewidth=1,
-                    color="red",
-                    linestyle="dashed",
+                    x=pars, linewidth=1, color="red", linestyle="dashed",
                 )
             # pars_line.set_label("parS")
 
@@ -642,7 +636,7 @@ def hicreppy_plot_jack(
     n = np.shape(data)[0]
     x = np.arange(0, n * n, 1) % n + 1
     y = np.repeat(np.arange(n, 0, -1), n)
-    values = np.zeros(n**2)
+    values = np.zeros(n ** 2)
     for i in range(n):
         for j in range(n):
             values[i * n + j] = data_reorder[i, j]
