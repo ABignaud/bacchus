@@ -8,7 +8,7 @@ Functions:
     - build_map
     - extract_big_wig
     - generates_frags
-    - merge_map
+    - generate_track
 """
 
 
@@ -22,6 +22,7 @@ import pandas as pd
 import pyBigWig
 from scipy.ndimage import gaussian_filter1d
 from typing import List, Optional, Tuple
+from bacchus.genomes import Track
 
 
 def binned_map(
@@ -255,3 +256,17 @@ def generates_frags(n: int, binning: int) -> "pandas.DataFrame":
     }
     frags = pd.DataFrame(frags)
     return frags
+
+
+def generate_track(file: str, circular: Optional[bool] = True,) -> Track:
+    """Function to extract a track from a bigwig binned at 1bp.
+
+    Parameters
+    ----------
+    file : str 
+        Path to the bigwig file.
+    circular : bool
+        If the genome is circular or not.
+    """
+    bigwig = pyBigWig.open(file)
+    return Track(bigwig, circular)
