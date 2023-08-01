@@ -16,7 +16,9 @@ Functions:
 import bacchus.io as bcio
 import pandas as pd
 import numpy as np
+import pyfastx
 from typing import List, Optional, Tuple
+from bacchus.genomes import Genome, Fragment, Position, Track
 
 
 def compute_oriter_ratio(
@@ -75,175 +77,273 @@ def compute_oriter_ratio(
 
 
 def detect_ori_ter(
-    gcskew_data: "pandas.DataFrame", pars_data: "pandas.DataFrame"
-) -> Tuple[int]:
-    """Function to find the ori and ter thanks to GC skew and parS sites.
+    gc_shift: List[Position],
+    pars: List[Fragment],
+    genome: Genome,
+    cov_data: Optional[Track] = None,
+    window: Optional[int] = 50_000,
+) -> List[Position]:
+    """Function to find the ori and ter thanks to GC skew and parS sites. If no
+    parS sites have been found (empty DataFrame) we detect Ori and Ter positions 
+    based on the coverage.
 
-    Parameters:
-    -----------
-    gcskew_data : pandas.DataFrame
-        Four columns table with the GC skew.
-    pars_data : pandas.DataFrame
-        Table with parS sites informations.
+    Parameters
+    ----------
+    gc_shift : list of Positions
+        List of Position of the GC shift.
+    pars : list of Fragments 
+        List of Fragments corresponding to the parS sites.
+    genome : Genome
+        Genome of the sample.
+    cov_data : Track
+        Path to the coverage bed or bigwig file.
+    window : int
+        Size of the window to average coverage at a GC shift.
 
     Returns:
     --------
-    tuple of int:
+    list of Positions:
         Ori and ter positions.
     """
-    pos_shift, genome_size = gc_skew_shift_detection(gcskew_data)
-    pars_cluster_pos = np.mean(pars_data.start)
-    pars_opp_pos = pars_cluster_pos + genome_size / 2
-    # Take the circularity into account
-    if pars_opp_pos > genome_size:
-        pars_opp_pos - genome_size
-    diff_ori = 10 ** 12
-    diff_ter = 10 ** 12
-    ori = pos_shift[0]
-    ter = pos_shift[1]
-    for pos in pos_shift:
-        curr_diff = abs(pos - pars_cluster_pos)
-        # Take the circularity into account
-        if curr_diff > genome_size / 2:
-            curr_diff = genome_size - curr_diff
-        if diff_ori > curr_diff:
-            ori = pos
-            diff_ori = curr_diff
-        curr_diff = abs(pos - pars_opp_pos)
-        # Take the circularity into account
-        if curr_diff > genome_size / 2:
-            curr_diff = genome_size - curr_diff
-        if diff_ter > curr_diff:
-            ter = pos
-            diff_ter = curr_diff
-    return ori, ter
+
+    pos_list = []
+    stride = window // 2
+
+    # Iterates on each chromosome.
+    for chrom in genome.chroms:
+        chrom_size = len(genome.chroms[chrom])
+        pars_chrom = []
+        for pos in pars:
+            if pos.chrom == chrom:
+                pars_chrom.append(pos)
+        # Separate case where we have parS or not.
+        if len(pars_chrom) > 0:  # Case with parS sites.
+            pars_cluster_pos = np.mean([site.middle() for site in pars_chrom])
+            pars_opp_pos = pars_cluster_pos + chrom_size / 2
+            # Take the circularity into account
+            if pars_opp_pos > chrom_size:
+                pars_opp_pos = pars_opp_pos - chrom_size
+            diff_ori = 10 ** 12
+            diff_ter = 10 ** 12
+            ori = gc_shift[0].coord
+            ter = gc_shift[1].coord
+            for pos in gc_shift:
+                if pos.chrom == chrom:
+                    curr_diff = abs(pos.coord - pars_cluster_pos)
+                    # Take the circularity into account
+                    if curr_diff > chrom_size / 2:
+                        curr_diff = chrom_size - curr_diff
+                    if diff_ori > curr_diff:
+                        ori = pos.coord
+                        diff_ori = curr_diff
+                    curr_diff = abs(pos.coord - pars_opp_pos)
+                    # Take the circularity into account
+                    if curr_diff > chrom_size / 2:
+                        curr_diff = chrom_size - curr_diff
+                    if diff_ter > curr_diff:
+                        ter = pos.coord
+                        diff_ter = curr_diff
+            pos_list.append(Position(chrom, ori, description="Ori"))
+            pos_list.append(Position(chrom, ter, description="Ter"))
+        else:  # Cas with no parS sites
+            # Import cov data
+            if cov_data is not None:
+                min_cov, max_cov = 0, 0
+                ori, ter = None, None
+                for pos in gc_shift:
+                    if pos.chrom == chrom:
+                        local_cov = np.nanmean(
+                            remove_nmad(
+                                cov_data.values[pos.chrom][
+                                    pos.coord - stride : pos.coord + stride
+                                ]
+                            )
+                        )
+                        if local_cov < min_cov or min_cov == 0:
+                            ter = pos.coord
+                            min_cov = local_cov
+                        elif local_cov > max_cov or max_cov == 0:
+                            ori = pos.coord
+                            max_cov = local_cov
+                if ori is None or ter is None:
+                    ori, ter = None, None
+                pos_list.append(Position(chrom, ori, description="Ori"))
+                pos_list.append(Position(chrom, ter, description="Ter"))
+    return pos_list
 
 
-def gc_skew_shift_detection(data: "pandas.DataFrame",) -> Tuple[List[int], int]:
+def gc_skew_shift_detection(
+    data: "pandas.DataFrame", genome: Genome, circular: Optional[bool] = True,
+) -> List[Position]:
     """Function to detect GC skew shift.
 
     Parameters:
     -----------
     data : pandas.DataFrame
         For columns table with the GC skew.
+    genome : Genome
+        Genome object of the reference.
+    Circular : bool
+        Either the chromosomes are circular or not.
 
     Returns:
     --------
-    List of int:
+    List of Position:
         List of the GC shift position.
-    int:
-        Genome size
     """
     data.columns = ["chr", "start", "end", "val"]
     # Look for step and window_size
     step = data.start[1] - data.start[0]
     window = data.end[0] - data.start[0] + 1
-    # Initialization
-    genome_size = data.end[data.shape[0] - 1]
-    previous_value = data.val[data.shape[0] - 1]
-    diff = 1000
+
+    # Iterates on the chromosome.
     pos_shift = []
-    pos = 0
-    # Search for GC skew shift on the GC skew
-    n = data.shape[0]
-    for i in range(n):
-        current_value = data.val[i]
-        # Search for local inversion of GC skew
-        if previous_value * current_value < 0:
-            # Check if global inversion or just a small one.
-            alpha = 100
-            if i < alpha:
-                a = np.sum(
-                    [x / (abs(x) + 10 ** -12) for x in data.val[0:i]]
-                ) + np.sum(
-                    [x / (abs(x) + 10 ** -12) for x in data.val[n - i : n]]
-                )
-                b = np.sum(
-                    [x / (abs(x) + 10 ** -12) for x in data.val[i : i + alpha]]
-                )
-            elif i + alpha > n - 1:
-                alpha = n - i - 1
-                a = np.sum(
-                    [x / (abs(x) + 10 ** -12) for x in data.val[i - alpha : i]]
-                )
-                b = np.sum(
-                    [x / (abs(x) + 10 ** -12) for x in data.val[i:n]]
-                ) + np.sum(
-                    [x / (abs(x) + 10 ** -12) for x in data.val[0 : n - i]]
-                )
-            else:
-                a = np.sum(
-                    [x / (abs(x) + 10 ** -12) for x in data.val[i - alpha : i]]
-                )
-                b = np.sum(
-                    [x / (abs(x) + 10 ** -12) for x in data.val[i : i + alpha]]
-                )
-            if a * b < 0:
-                # Look for the middle of the inversion.
-                # A new shift is consider if it's at more than
-                # 300kb from the previous one
-                curr_diff = abs(a + b)
-                curr_pos = int(data.start[i] + int(window / 2) - 1)
-                if curr_pos > pos + 200000 and pos != 0:
-                    pos_shift.append(pos)
-                    diff = curr_diff
-                    pos = curr_pos
-                if curr_diff < diff:
-                    diff = curr_diff
-                    pos = curr_pos
-        previous_value = current_value
-    pos_shift.append(pos)
-    return pos_shift, genome_size
+    chromsizes = genome.chromsizes
+
+    for chrom in genome.chroms:
+        # Initialization
+        diff = 1000
+        pos = 0
+        # Subset data by chromosome.
+        data_chrom = data.loc[data["chr"] == chrom]
+        n = data_chrom.shape[0]
+        # If circular count a shift if one over the start/end of the chromosome.
+        if circular:
+            previous_value = data_chrom.val.iloc[n - 1]
+        else:
+            previous_value = 0
+
+        # Search for GC skew shift on the GC skew
+        for i in range(n):
+            current_value = data_chrom.val.iloc[i]
+            # Search for local inversion of GC skew
+            if previous_value * current_value < 0:
+                # Check if global inversion or just a small one.
+                alpha = 100  # use 100 windows to average the inversion.
+                if i < alpha:  # Edge case too close to chrom start.
+                    a = np.sum(
+                        [
+                            x / (abs(x) + 10 ** -12)
+                            for x in data_chrom.val.iloc[0:i]
+                        ]
+                    )
+                    if circular:
+                        a += np.sum(
+                            [
+                                x / (abs(x) + 10 ** -12)
+                                for x in data_chrom.val.iloc[n - alpha + i : n]
+                            ]
+                        )
+                    b = np.sum(
+                        [
+                            x / (abs(x) + 10 ** -12)
+                            for x in data_chrom.val.iloc[i : i + alpha]
+                        ]
+                    )
+                elif i + alpha > n - 1:  # Edge case too close to chrom end.
+                    a = np.sum(
+                        [
+                            x / (abs(x) + 10 ** -12)
+                            for x in data_chrom.val.iloc[i - alpha : i]
+                        ]
+                    )
+                    b = np.sum(
+                        [
+                            x / (abs(x) + 10 ** -12)
+                            for x in data_chrom.val.iloc[i:n]
+                        ]
+                    )
+                    if circular:
+                        b += np.sum(
+                            [
+                                x / (abs(x) + 10 ** -12)
+                                for x in data_chrom.val.iloc[0 : alpha - n + i]
+                            ]
+                        )
+                else:
+                    a = np.sum(
+                        [
+                            x / (abs(x) + 10 ** -12)
+                            for x in data_chrom.val.iloc[i - alpha : i]
+                        ]
+                    )
+                    b = np.sum(
+                        [
+                            x / (abs(x) + 10 ** -12)
+                            for x in data_chrom.val.iloc[i : i + alpha]
+                        ]
+                    )
+                if a * b < 0:
+                    # Look for the middle of the inversion.A new shift is
+                    # consider if it's at more than 200kb from the previous one.
+                    curr_diff = abs(a + b)
+                    curr_pos = int(
+                        data_chrom.start.iloc[i] + int(window / 2) - 1
+                    )  # -1 for the 0-based.
+                    if curr_pos > pos + 200000 and pos != 0:
+                        pos_shift.append(Position(chrom, pos))
+                        diff = curr_diff
+                        pos = curr_pos
+                    if curr_diff < diff:  # The closer to 0 the better.
+                        diff = curr_diff
+                        pos = curr_pos
+            previous_value = current_value
+        pos_shift.append(Position(chrom, pos))
+    return pos_shift
 
 
-def oriter_main(
-    gc_skew_file: str, pars_file: str, cov_file: Optional[str] = None
-) -> Tuple[int, int, float]:
-    """Main function to detect ori and ter and compute the ratio of coverage if
-    a coverage file is provided. The position is based on the parS sites and the
-    GC skew shift.
+def main_oriter_detection(
+    fasta_file: str,
+    gc_skew_file: str,
+    pars_file: str,
+    outfile: str,
+    cov_file: Optional[str] = None,
+    window: Optional[int] = 50_000,
+    circular: Optional[bool] = True,
+):
+    # Import genome.
+    fasta = pyfastx.Fasta(fasta_file, build_index=False)
+    genome = Genome(fasta)
 
-    Parameters
-    ----------
-    gc_skew_file : str
-        Path to the gcskew bed file.
-    pars_file : str
-        Path to the pars bed file.
-    cov_file : str
-        Path to the coverage bed file.
-
-    Returns
-    -------
-    int:
-        Position of ori.
-    int:
-        Position of ter.
-    float:
-        Ratio of coverage between ori and ter.
-    """
-    # Extract data
+    # Import GC_skew data.
     gc_skew_data = pd.read_csv(
         gc_skew_file, sep="\t", header=0, names=["chr", "start", "end", "val"]
     )
-    pars_data = pd.read_csv(
+
+    # Import parS data.
+    pars_tmp = pd.read_csv(
         pars_file,
         sep="\t",
         header=None,
         names=["chr", "start", "end", "type", "seq", "err"],
     )
-    # Detect ori and ter
-    ori, ter = detect_ori_ter(gc_skew_data, pars_data)
-    # Compute ori/ter ratio if coverage provided.
-    if cov_file is not None:
-        cov_data = pd.read_csv(
-            cov_file,
-            sep="\t",
-            header=None,
-            names=["chr", "start", "end", "val"],
+    pars_data = []
+    for i in pars_tmp.index:
+        pars_data.append(
+            Fragment(
+                pars_tmp.loc[i, "chr"],
+                pars_tmp.loc[i, "start"],
+                pars_tmp.loc[i, "end"],
+                description="parS",
+            )
         )
-        ratio = compute_oriter_ratio(cov_data, ori, ter)
 
-    return ori, ter, ratio
+    # Import coverage track.
+    if cov_file is not None:
+        cov_data = bcio.generate_track(cov_file, circular)
+    else:
+        cov_data = None
+
+    # Compute GC_shift.
+    gc_shift = gc_skew_shift_detection(gc_skew_data, genome, circular)
+
+    # Detect ori and ter.
+    pos = detect_ori_ter(gc_shift, pars_data, genome, cov_data, window)
+
+    # Write in a bed file.
+    with open(outfile, "w") as out:
+        for p in pos:
+            out.write(f"{p.chrom}\t{p.coord}\t{p.description}\n")
 
 
 def remove_nmad(values: "numpy.ndarray", n: int = 3) -> "numpy.ndarray":
