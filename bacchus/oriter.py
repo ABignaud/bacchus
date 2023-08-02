@@ -8,7 +8,8 @@ Functions:
     - compute_oriter_ratio
     - detect_ori_ter
     - gc_skew_shift_detection
-    - oriter_main
+    - get_window
+    - main_oriter_detection
     - remove_nmad
 """
 
@@ -22,58 +23,56 @@ from bacchus.genomes import Genome, Fragment, Position, Track
 
 
 def compute_oriter_ratio(
-    data: "pandas.DataFrame", ori: int, ter: int, window: int = 100_000
-) -> Tuple[float]:
+    cov: Track,
+    oriter: List[Position],
+    window: int = 100_000,
+    circular: bool = True,
+) -> dict:
     """Function to compute the ratio of the coverage between the ori and the
     ter.
 
     Parameters:
     -----------
-    data : pandas.DataFrame
+    cov : Track
         Table with 4 columns : "chr", "start", "end", "value".
-    ori : int
-        Position of the ori.
-    ter : int
-        Position of the ter.
+    ori : list of Position
+        Positions of the ori and ter of each chromosomes. 
     window : int
         Size of the window to consider around the ori or ter to get the mean
         coverage.
+    circular : bool
+        Either the chromosome is circular or not.
 
     Returns:
     --------
-    float:
-        Ratio of the coverage between ori and ter region.
-    float:
-        Mean coverage around the ori.
-    float:
-        Mean coverage around the ter.
+    dict:
+        Values of coverage at the ori and ter positions for each chromosome. 
+        Chromosome are the keys of the dictionnary.
     """
-    # Rename columns and initialize values.
-    data.columns = ["chr", "start", "end", "val"]
-    step = data.start[1] - data.start[0]
-    ori_values = []
-    ter_values = []
 
-    # Extract values vector and add 50kb at each extremities to have a
-    # pseudo-circular array to manage easily the edge cases.
-    val = np.array(data.val)
-    extend = round((window / 2) / step)
-    values = np.concatenate(
-        (np.concatenate((val[-extend:], val)), val[:extend])
-    )
+    # Ratio init
+    ratio = {}
 
-    # Transform ori and ter in the same coordinates as the bed indexes.
-    ori = ori // step
-    ter = ter // step
-    ori_values = values[ori : ori + 2 * extend]
-    ter_values = values[ter : ter + 2 * extend]
+    # Iterates on chromosomes.
+    for chrom in cov.values:
+        ori_pos, ter_pos = None, None
+        for p in oriter:
+            # Search for ori and ter positions.
+            if (p.chrom == chrom) & (p.description == "Ori"):
+                ori_pos = int(p.coord)
+            elif (p.chrom == chrom) & (p.description == "Ter"):
+                ter_pos = int(p.coord)
 
-    # Remove outliers values and do the mean coverage at each size.
-    ori_value = np.mean(remove_nmad(ori_values))
-    ter_value = np.mean(remove_nmad(ter_values))
-    # Compute ratio.
-    ratio = ori_value / ter_value
-    return ratio, ori_value, ter_value
+        if ori_pos is not None:  # Don't do anything if ori or ter is None.
+            val = remove_nmad(cov.values[chrom])
+            ori_cov = np.nanmean(get_window(val, ori_pos, window, circular))
+            ter_cov = np.nanmean(get_window(val, ter_pos, window, circular))
+            ratio[chrom] = {
+                "ori_cov": ori_cov,
+                "ter_cov": ter_cov,
+                "ratio": ori_cov / ter_cov,
+            }
+    return ratio
 
 
 def detect_ori_ter(
@@ -300,6 +299,46 @@ def gc_skew_shift_detection(
     return pos_shift
 
 
+def get_window(val: List, pos: int, wind: int, circular: bool = True):
+    """Function to extract a window from list. it can wrap it if circular track.
+    
+    Parameters
+    ----------
+    val : list of values
+        Vector to subset.
+    pos : int
+        index of central position.
+    wind : int
+        size of the window.
+    circular : bool
+        Either the vector is circular or not to handle edge cases.
+
+    Return
+    ------
+    list:
+        Subset vector.
+    """
+    wind = wind // 2
+    n = len(val)
+    if circular:
+        if pos < wind:
+            val_window = np.concatenate((val[wind - pos :], val[: pos + wind]))
+        elif pos > n - wind:
+            val_window = np.concatenate(
+                (val[pos - wind :], val[: pos - n - wind])
+            )
+        else:
+            val_window = val[pos - wind : pos + wind]
+    else:
+        if pos < wind:
+            val_window = val[: pos + wind]
+        elif pos > n - wind:
+            val_window = val[pos - wind :]
+        else:
+            val_window = val[pos - wind : pos + wind]
+    return val_window
+
+
 def main_oriter_detection(
     fasta_file: str,
     gc_skew_file: str,
@@ -358,6 +397,6 @@ def remove_nmad(values: "numpy.ndarray", n: int = 3) -> "numpy.ndarray":
     """Function to remove values which are at different from the median more
     than n times the mad.
     """
-    mad = np.median(np.absolute(values - np.median(values)))
-    med = np.median(values)
+    mad = np.nanmedian(np.absolute(values - np.nanmedian(values)))
+    med = np.nanmedian(values)
     return [x for x in values if abs(x - med) <= mad * n]
