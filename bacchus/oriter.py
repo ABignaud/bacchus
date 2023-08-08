@@ -124,8 +124,13 @@ def detect_ori_ter(
                 pars_opp_pos = pars_opp_pos - chrom_size
             diff_ori = 10 ** 12
             diff_ter = 10 ** 12
-            ori = gc_shift[0].coord
-            ter = gc_shift[1].coord
+            if len(gc_shift) > 1: # Case with no GC shift.
+                ori = gc_shift[0].coord
+                ter = gc_shift[1].coord
+            else:
+                pos_list.append(Position(chrom, None, description="Ori"))
+                pos_list.append(Position(chrom, None, description="Ter"))
+                continue
             for pos in gc_shift:
                 if pos.chrom == chrom:
                     curr_diff = abs(pos.coord - pars_cluster_pos)
