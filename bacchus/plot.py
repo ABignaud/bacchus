@@ -129,7 +129,7 @@ def antidiagonal_plot(
 
     # Savefig if necessary
     if out_file is not None:
-        plt.savefig(out_file, dpi=dpi)
+        plt.savefig(out_file, dpi=dpi, bbox_inches='tight')
 
 
 def antidiagonal_scalogram(
@@ -265,7 +265,7 @@ def antidiagonal_scalogram(
 
     # Savefig if necessary
     if out_file is not None:
-        plt.savefig(out_file, dpi=dpi)
+        plt.savefig(out_file, dpi=dpi, bbox_inches='tight')
 
 
 def cluster_corr(corr_array: "numpy.ndarray", inplace: bool = False):
