@@ -7,6 +7,7 @@
 Functions:
     - compute_oriter_ratio
     - detect_ori_ter
+    - frags_center
     - gc_skew_shift_detection
     - get_window
     - main_oriter_detection
@@ -81,6 +82,7 @@ def detect_ori_ter(
     genome: Genome,
     cov_data: Optional[Track] = None,
     window: Optional[int] = 50_000,
+    circular: bool = True,
 ) -> List[Position]:
     """Function to find the ori and ter thanks to GC skew and parS sites. If no
     parS sites have been found (empty DataFrame) we detect Ori and Ter positions 
@@ -98,6 +100,8 @@ def detect_ori_ter(
         Path to the coverage bed or bigwig file.
     window : int
         Size of the window to average coverage at a GC shift.
+    circular : bool
+        Either the chromosomes are circular or not.
 
     Returns:
     --------
@@ -117,7 +121,7 @@ def detect_ori_ter(
                 pars_chrom.append(pos)
         # Separate case where we have parS or not.
         if len(pars_chrom) > 0:  # Case with parS sites.
-            pars_cluster_pos = np.mean([site.middle() for site in pars_chrom])
+            pars_cluster_pos = frags_center(pars_chrom, chrom_size, circular)
             pars_opp_pos = pars_cluster_pos + chrom_size / 2
             # Take the circularity into account
             if pars_opp_pos > chrom_size:
@@ -178,6 +182,61 @@ def detect_ori_ter(
                 pos_list.append(Position(chrom, ori, description="Ori"))
                 pos_list.append(Position(chrom, ter, description="Ter"))
     return pos_list
+
+
+def frags_center(
+        frags: List[Fragment], chrom_size: int, circular: bool = True
+    ) -> int:
+    """Function to compute the middle positions of a list of fragments (parS or 
+    matS positions). The function handle the case of circular where the middle 
+    position could be different than the mean of the coordinates.
+
+    Parameters
+    ----------
+    frags : list of Fragment
+        Coordinates of the positions of the fragments.
+    chrom_size : int
+        Size of the given chromosome.
+    circular : bool 
+        Either the genome is circular or not.
+
+    Return
+    ------
+    int: 
+        Position of the middle of the cluster of frags.
+    
+    Example
+    -------
+        >>> from bacchus.genomes import Fragment
+        >>> frags = [Fragment('chr', 10, 30), Fragment('chr', 980, 1000)
+        >>> frags_center(frags, 1000, True)
+        5
+        >>> frags_center(frags, 1000, False)
+        505
+        >>> frags = [Fragment('chr', 10, 30), Fragment('chr', 40, 60)
+        >>> frags_center(frags, 1000, True)
+        35
+    """
+    middles = [site.middle() for site in frags]
+    if circular:
+        # Middle in the middle of the chromosome.
+        posA = np.mean(middles)
+        diffA = np.sum([np.abs(posA - pos) for pos in middles])
+        # Middle passing by the edges.
+        middles_edges = [
+            pos if pos > chrom_size // 2 else pos + chrom_size 
+            for pos in middles
+        ]
+        posB = np.mean(middles_edges)
+        diffB = np.sum([np.abs(posB - pos) for pos in middles_edges])
+        # Smaller difference is the best.
+        if diffA <= diffB:
+            pos = posA
+        else:
+            pos = posB if posB < chrom_size else posB - chrom_size
+    else:
+        pos = np.mean(middles)
+    return pos
 
 
 def gc_skew_shift_detection(
@@ -304,7 +363,7 @@ def gc_skew_shift_detection(
     return pos_shift
 
 
-def get_window(val: List, pos: int, wind: int, circular: bool = True):
+def get_window(val: List, pos: int, wind: int, circular: bool = True) -> List:
     """Function to extract a window from list. it can wrap it if circular track.
     
     Parameters
@@ -390,7 +449,14 @@ def main_oriter_detection(
     gc_shift = gc_skew_shift_detection(gc_skew_data, genome, circular)
 
     # Detect ori and ter.
-    pos = detect_ori_ter(gc_shift, pars_data, genome, cov_data, window)
+    pos = detect_ori_ter(
+        gc_shift,
+        pars_data,
+        genome,
+        cov_data,
+        window,
+        circular,
+    )
 
     # Write in a bed file.
     with open(outfile, "w") as out:
