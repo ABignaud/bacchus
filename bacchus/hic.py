@@ -449,16 +449,12 @@ def get_symmetric(M: "scipy.sparse.csr_matrix") -> "scipy.sparse.csr_matrix":
         >>> import numpy as np
         >>> import scipy as sp
         >>> M = sp.sparse.csr_matrix(np.array([[0, 0, 1], [0, 1, 0], [0, 0, 1]]))
-        >>> print(get_symmetric(M))
-        (0, 2)        1
-        (1, 1)        1
-        (2, 0)        1
-        (2, 2)        1
+        >>> M2 = np.array([[0, 0, 1], [0, 1, 0], [1, 0, 1]])
+        >>> (get_symmetric(M) == M2).all()
+        True
         >>> M = sp.sparse.csr_matrix(np.array([[0, 0, 1], [0, 1, 0], [1, 0, 0]]))
-        >>> print(get_symmetric(M))
-        (0, 2)        1
-        (1, 1)        1
-        (2, 0)        1
+        >>> (get_symmetric(M) == M.todense()).all()
+        True
     """
     # Test whether it's already symetric or not.
     if not is_symmetric(M):

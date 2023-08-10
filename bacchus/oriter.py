@@ -208,12 +208,12 @@ def frags_center(
     Example
     -------
         >>> from bacchus.genomes import Fragment
-        >>> frags = [Fragment('chr', 10, 30), Fragment('chr', 980, 1000)
+        >>> frags = [Fragment('chr', 10, 30), Fragment('chr', 980, 1000)]
         >>> frags_center(frags, 1000, True)
         5
         >>> frags_center(frags, 1000, False)
         505
-        >>> frags = [Fragment('chr', 10, 30), Fragment('chr', 40, 60)
+        >>> frags = [Fragment('chr', 10, 30), Fragment('chr', 40, 60)]
         >>> frags_center(frags, 1000, True)
         35
     """
@@ -236,7 +236,7 @@ def frags_center(
             pos = posB if posB < chrom_size else posB - chrom_size
     else:
         pos = np.mean(middles)
-    return pos
+    return int(pos)
 
 
 def gc_skew_shift_detection(

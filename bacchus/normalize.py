@@ -38,9 +38,9 @@ def _zero_diags(
         >>> data = sp.sparse.csr_matrix([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
         >>> r = _zero_diags(data, n_diags=2)
         >>> r.eliminate_zeros()
-        >>> print(r)
-        (0, 2)    3
-        (2, 0)    7
+        >>> r2 = np.array([[0, 0, 3], [0, 0, 0], [7, 0, 0]])
+        >>> (r == r2).all()
+        True
     """
     r = sp.sparse.csr_matrix(data)
     row_indices, col_indices = r.nonzero()
