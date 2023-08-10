@@ -1,12 +1,21 @@
 """
 Datastructures representing a genome as a collection of chromosomes. A number of
 methods allow to manipulate genome regions, and retrieve the altered sequence.
+
+Classes:
+    - Chromosome
+    - Genome
+    - Position
+    - Fragment
+    - Track
 """
 
+
 from __future__ import annotations
-from typing import List, Dict, Iterator, Tuple
+from typing import Dict, Iterator, Optional, Tuple
 from dataclasses import dataclass, field
 import copy
+import pyBigWig
 import pyfastx
 import numpy as np
 
