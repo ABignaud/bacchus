@@ -121,6 +121,7 @@ def detect_ori_ter(
                 pars_chrom.append(pos)
         # Separate case where we have parS or not.
         if len(pars_chrom) > 0:  # Case with parS sites.
+            ori, ter = None, None
             pars_cluster_pos = frags_center(pars_chrom, chrom_size, circular)
             pars_opp_pos = pars_cluster_pos + chrom_size / 2
             # Take the circularity into account
@@ -132,8 +133,8 @@ def detect_ori_ter(
                 ori = gc_shift[0].coord
                 ter = gc_shift[1].coord
             else:
-                pos_list.append(Position(chrom, None, description="Ori"))
-                pos_list.append(Position(chrom, None, description="Ter"))
+                pos_list.append(Position(chrom, ori, description="Ori"))
+                pos_list.append(Position(chrom, ter, description="Ter"))
                 continue
             for pos in gc_shift:
                 if pos.chrom == chrom:
