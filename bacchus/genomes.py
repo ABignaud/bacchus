@@ -22,7 +22,7 @@ import numpy as np
 
 class Chromosome:
     """Representation of a chromosome as a collection of fragments.
-    Each fragment represents a (0-based, right-open) region of the original 
+    Each fragment represents a (0-based, right-open) region of the original
     genome.
     """
 
@@ -37,7 +37,7 @@ class Chromosome:
 
     @property
     def boundaries(self):
-        """Get array of fragment boundaries, from the start to the end of the 
+        """Get array of fragment boundaries, from the start to the end of the
         chromosome."""
         # Memorize whether fragments have changed to avoid recomputing the same
         # values.
@@ -165,7 +165,9 @@ class Chromosome:
             strand = "-" if frag.is_reverse else "+"
             # Note: fasta.fetch is 1-based...
             yield fasta.fetch(
-                frag.chrom, (int(frag.start + 1), (frag.end)), strand=strand,
+                frag.chrom,
+                (int(frag.start + 1), (frag.end)),
+                strand=strand,
             )
 
 
@@ -231,7 +233,8 @@ class Genome:
 
     def get_seq(self) -> Dict[str, Iterator[str]]:
         """Retrieve the genomic sequence of each chromosome. Each chromosome's
-        sequence is returned as a generator of (lazily-retrieved) fragment sequences."""
+        sequence is returned as a generator of (lazily-retrieved) fragment sequences.
+        """
         seqs = {}
         for chrom in self.chroms.values():
             seqs[chrom.name] = chrom.get_seq(self.fasta)
@@ -273,7 +276,7 @@ class Position:
 
 @dataclass
 class Fragment:
-    """A region representing a DNA sequence. Coordinates are 0-based and 
+    """A region representing a DNA sequence. Coordinates are 0-based and
     left-open.
 
     Attributes
@@ -283,7 +286,7 @@ class Fragment:
         Chromosome on which the fragment is located.
     start:
         Coordinate where the fragment starts on the chromosome (smallest).
-    end: 
+    end:
         Coordinate where the fragment ends (largest).
     is_reverse:
         Whether the Fragment is reverse or not.
@@ -297,7 +300,9 @@ class Fragment:
     is_reverse: bool = field(default=False)
     description: str = field(default=False)
 
-    def __post_init__(self,):
+    def __post_init__(
+        self,
+    ):
         if self.end < self.start:
             raise ValueError("end cannot be smaller than start.")
         if self.start < 0:

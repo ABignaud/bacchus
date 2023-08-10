@@ -157,6 +157,7 @@ def extract_big_wig(
     circular: bool = True,
     sigma: Optional[int] = None,
     ztransform: bool = False,
+    chroms: Optional[List[str]] = None,
 ) -> "numpy.ndarray":
     """Function to extract big wig information. It considered that the file is
     bin at 1 base pair and it has only one chromosome. If binning is set it will
@@ -174,6 +175,8 @@ def extract_big_wig(
         If one given will do a gaussian filter with this sigma value.
     ztransform : bool
         Whether to Z-transformed the track or not.
+    chrom : list of str
+        Chromosome names to extract.
 
     Returns
     -------
@@ -189,14 +192,16 @@ def extract_big_wig(
 
     # Open BigWig file
     tab = pyBigWig.open(file)
-    for name in tab.chroms():
+
+    chroms = chroms if chroms is not None else tab.chroms()
+    for name in chroms:
         dict_chr[name] = length
         length += math.ceil(tab.chroms()[name] / binning)
 
     # Defined final vector of values.
     binned_values = np.zeros((length + 1))
 
-    for name in tab.chroms():
+    for name in chroms:
         # Defined start position of the chromosome in the final binned vector.
         start = dict_chr[name]
 
@@ -258,12 +263,15 @@ def generates_frags(n: int, binning: int) -> "pandas.DataFrame":
     return frags
 
 
-def generate_track(file: str, circular: Optional[bool] = True,) -> Track:
+def generate_track(
+    file: str,
+    circular: Optional[bool] = True,
+) -> Track:
     """Function to extract a track from a bigwig binned at 1bp.
 
     Parameters
     ----------
-    file : str 
+    file : str
         Path to the bigwig file.
     circular : bool
         If the genome is circular or not.

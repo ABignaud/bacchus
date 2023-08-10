@@ -286,7 +286,6 @@ def pileup_genes(
 
     # Iterates on genes
     for i in range(len(annotation)):
-
         # Extract genes data
         chrom = annotation.loc[i, "chr"]
         pos = annotation.loc[i, "tss"]

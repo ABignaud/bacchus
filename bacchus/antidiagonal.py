@@ -16,7 +16,9 @@ from typing import List
 
 
 def compute_antidiagonal(
-    M: "numpy.ndarray", full: bool = True, ignore_diags: int = 2,
+    M: "numpy.ndarray",
+    full: bool = True,
+    ignore_diags: int = 2,
 ) -> "numpy.ndarray":
     """Function to compute all the antidiagonal strength centered on the origin
     to be able to evaluate the strength of the antidiagonal passing through the
@@ -78,7 +80,10 @@ def compute_antidiagonal(
 
 
 def compute_antidiagonal_scalogram(
-    M: "numpy.ndarray", binning: int, windows: List[int], ignore_diags: int = 2,
+    M: "numpy.ndarray",
+    binning: int,
+    windows: List[int],
+    ignore_diags: int = 2,
 ) -> "numpy.ndarray":
     """Function to compute all the antidiagonal strength centered on the origin
     to be able to evaluate the strength of the antidiagonal passing through the
