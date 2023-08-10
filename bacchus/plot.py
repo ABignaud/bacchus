@@ -545,7 +545,7 @@ def get_chrom_start(cool_file: str, binning: int):
     """
     # Import chroms from cool.
     cool = cooler.Cooler(f"{cool_file}")
-    chroms = cool.chroms()[:]
+    chroms = pd.DataFrame(cool.chroms()[:])
 
     # Create chrom_starts list
     chrom_starts = np.zeros(len(chroms))
@@ -827,7 +827,7 @@ def pileup_plot(
     im = pax.imshow(
         pileup,
         cmap="seismic",
-        vmin=-vmax,
+        vmin=-1 * vmax,
         vmax=vmax,
         extent=[-window_plot, window_plot, window_plot, -window_plot],
     )
