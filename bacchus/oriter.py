@@ -11,6 +11,7 @@ Functions:
     - gc_skew_shift_detection
     - get_window
     - main_oriter_detection
+    - interpolate_nmad
     - remove_nmad
 """
 
@@ -21,6 +22,7 @@ import numpy as np
 import pyfastx
 from typing import List, Optional, Tuple
 from bacchus.genomes import Genome, Fragment, Position, Track
+from scipy.interpolate import splrep, BSpline
 
 
 def compute_oriter_ratio(
@@ -37,7 +39,7 @@ def compute_oriter_ratio(
     cov : Track
         Table with 4 columns : "chr", "start", "end", "value".
     ori : list of Position
-        Positions of the ori and ter of each chromosomes. 
+        Positions of the ori and ter of each chromosomes.
     window : int
         Size of the window to consider around the ori or ter to get the mean
         coverage.
@@ -47,7 +49,7 @@ def compute_oriter_ratio(
     Returns:
     --------
     dict:
-        Values of coverage at the ori and ter positions for each chromosome. 
+        Values of coverage at the ori and ter positions for each chromosome.
         Chromosome are the keys of the dictionnary.
     """
 
@@ -80,24 +82,27 @@ def detect_ori_ter(
     gc_shift: List[Position],
     pars: List[Fragment],
     genome: Genome,
-    cov_data: Optional[Track] = None,
+    mats: Optional[List[Fragment]],
+    cov_file: Optional[str] = None,
     window: Optional[int] = 50_000,
     circular: bool = True,
 ) -> List[Position]:
     """Function to find the ori and ter thanks to GC skew and parS sites. If no
-    parS sites have been found (empty DataFrame) we detect Ori and Ter positions 
+    parS sites have been found (empty DataFrame) we detect Ori and Ter positions
     based on the coverage.
 
     Parameters
     ----------
     gc_shift : list of Positions
         List of Position of the GC shift.
-    pars : list of Fragments 
+    pars : list of Fragments
         List of Fragments corresponding to the parS sites.
     genome : Genome
         Genome of the sample.
-    cov_data : Track
-        Path to the coverage bed or bigwig file.
+    mats : list of Fragments
+        List of Fragments corresponding to the matS sites.
+    cov_file : str
+        Path to the coverage bigwig file.
     window : int
         Size of the window to average coverage at a GC shift.
     circular : bool
@@ -119,77 +124,97 @@ def detect_ori_ter(
         for pos in pars:
             if pos.chrom == chrom:
                 pars_chrom.append(pos)
+        mats_chrom = []
+        for pos in mats:
+            if pos.chrom == chrom:
+                mats_chrom.append(pos)
         # Separate case where we have parS or not.
-        if len(pars_chrom) > 0:  # Case with parS sites.
-            ori, ter = None, None
-            pars_cluster_pos = frags_center(pars_chrom, chrom_size, circular)
-            pars_opp_pos = pars_cluster_pos + chrom_size / 2
+        ori, ter = None, None
+        # Case with matS only if at least 10 matS sites.
+        if len(mats_chrom) > 10:
+            ter_pos = frags_center(mats_chrom, chrom_size, circular)
+            ori_pos = ter_pos + chrom_size / 2
             # Take the circularity into account
-            if pars_opp_pos > chrom_size:
-                pars_opp_pos = pars_opp_pos - chrom_size
-            diff_ori = 10 ** 12
-            diff_ter = 10 ** 12
-            if len(gc_shift) > 1: # Case with no GC shift.
-                ori = gc_shift[0].coord
-                ter = gc_shift[1].coord
+            if ori_pos > chrom_size:
+                ori_pos = ori_pos - chrom_size
+        elif len(pars_chrom) > 0:  # Case with parS sites.
+            ori_pos = frags_center(pars_chrom, chrom_size, circular)
+            ter_pos = ori_pos + chrom_size / 2
+            # Take the circularity into account
+            if ter_pos > chrom_size:
+                ter_pos = ter_pos - chrom_size
+        else:  # Cas with no parS sites
+            # Import cov data
+            if cov_file is not None:
+                cov_chrom, _ = bcio.extract_big_wig(
+                    cov_file, binning=stride, chroms=[chrom]
+                )
+                x = np.arange(0, len(cov_chrom) * stride, stride)
+                cov_chrom = interpolate_nmad(cov_chrom)
+                cov_chrom = [i - min(cov_chrom) for i in cov_chrom]
+                cov_chrom = [i / max(cov_chrom) for i in cov_chrom]
+                s = 10
+                c = []
+                while (len(c) != 2) and (s < 50):
+                    tck_s2 = splrep(x, cov_chrom, s=s, k=3, per=True)
+                    min_derivate = min(abs(BSpline(*tck_s2).derivative()(x)))
+                    mins = [
+                        i
+                        for i in np.arange(0, x[-1], stride / 100)
+                        if abs(BSpline(*tck_s2).derivative()(i)) < min_derivate
+                    ]
+                    oriter = np.unique([k // stride * stride for k in mins])
+                    s += 1
+                if s == 50:
+                    pos_list.append(Position(chrom, ori, description="Ori"))
+                    pos_list.append(Position(chrom, ter, description="Ter"))
+                    continue
+                if BSpline(*tck_s2)(oriter[0]) < BSpline(*tck_s2)(oriter[1]):
+                    ori_pos = oriter[1]
+                    ter_pos = oriter[0]
+                else:
+                    ori_pos = oriter[0]
+                    ter_pos = oriter[1]
             else:
                 pos_list.append(Position(chrom, ori, description="Ori"))
                 pos_list.append(Position(chrom, ter, description="Ter"))
                 continue
-            for pos in gc_shift:
-                if pos.chrom == chrom:
-                    curr_diff = abs(pos.coord - pars_cluster_pos)
-                    # Take the circularity into account
-                    if curr_diff > chrom_size / 2:
-                        curr_diff = chrom_size - curr_diff
-                    if diff_ori > curr_diff:
-                        ori = pos.coord
-                        diff_ori = curr_diff
-                    curr_diff = abs(pos.coord - pars_opp_pos)
-                    # Take the circularity into account
-                    if curr_diff > chrom_size / 2:
-                        curr_diff = chrom_size - curr_diff
-                    if diff_ter > curr_diff:
-                        ter = pos.coord
-                        diff_ter = curr_diff
+        # Refined coordinates using GC shift.
+        diff_ori = 10**12
+        diff_ter = 10**12
+        if len(gc_shift) > 1:  # Case with no GC shift.
+            ori = gc_shift[0].coord
+            ter = gc_shift[1].coord
+        else:
             pos_list.append(Position(chrom, ori, description="Ori"))
             pos_list.append(Position(chrom, ter, description="Ter"))
-        else:  # Cas with no parS sites
-            # Import cov data
-            if cov_data is not None:
-                min_cov, max_cov = 0, 0
-                ori, ter = None, None
-                try:
-                    cov_data.values[chrom]
-                    for pos in gc_shift:
-                        if pos.chrom == chrom:
-                            local_cov = np.nanmean(
-                                remove_nmad(
-                                    cov_data.values[pos.chrom][
-                                        pos.coord - stride : pos.coord + stride
-                                    ]
-                                )
-                            )
-                            if local_cov < min_cov or min_cov == 0:
-                                ter = pos.coord
-                                min_cov = local_cov
-                            elif local_cov > max_cov or max_cov == 0:
-                                ori = pos.coord
-                                max_cov = local_cov
-                    if ori is None or ter is None:
-                        ori, ter = None, None
-                except KeyError:  # Case no coverage on chrom.
-                    pass
-                pos_list.append(Position(chrom, ori, description="Ori"))
-                pos_list.append(Position(chrom, ter, description="Ter"))
+            continue
+        for pos in gc_shift:
+            if pos.chrom == chrom:
+                curr_diff = abs(pos.coord - ori_pos)
+                # Take the circularity into account
+                if curr_diff > chrom_size / 2:
+                    curr_diff = chrom_size - curr_diff
+                if diff_ori > curr_diff:
+                    ori = pos.coord
+                    diff_ori = curr_diff
+                curr_diff = abs(pos.coord - ter_pos)
+                # Take the circularity into account
+                if curr_diff > chrom_size / 2:
+                    curr_diff = chrom_size - curr_diff
+                if diff_ter > curr_diff:
+                    ter = pos.coord
+                    diff_ter = curr_diff
+        pos_list.append(Position(chrom, ori, description="Ori"))
+        pos_list.append(Position(chrom, ter, description="Ter"))
     return pos_list
 
 
 def frags_center(
-        frags: List[Fragment], chrom_size: int, circular: bool = True
-    ) -> int:
-    """Function to compute the middle positions of a list of fragments (parS or 
-    matS positions). The function handle the case of circular where the middle 
+    frags: List[Fragment], chrom_size: int, circular: bool = True
+) -> int:
+    """Function to compute the middle positions of a list of fragments (parS or
+    matS positions). The function handle the case of circular where the middle
     position could be different than the mean of the coordinates.
 
     Parameters
@@ -198,14 +223,14 @@ def frags_center(
         Coordinates of the positions of the fragments.
     chrom_size : int
         Size of the given chromosome.
-    circular : bool 
+    circular : bool
         Either the genome is circular or not.
 
     Return
     ------
-    int: 
+    int:
         Position of the middle of the cluster of frags.
-    
+
     Example
     -------
         >>> from bacchus.genomes import Fragment
@@ -225,7 +250,7 @@ def frags_center(
         diffA = np.sum([np.abs(posA - pos) for pos in middles])
         # Middle passing by the edges.
         middles_edges = [
-            pos if pos > chrom_size // 2 else pos + chrom_size 
+            pos if pos > chrom_size // 2 else pos + chrom_size
             for pos in middles
         ]
         posB = np.mean(middles_edges)
@@ -241,7 +266,9 @@ def frags_center(
 
 
 def gc_skew_shift_detection(
-    data: "pandas.DataFrame", genome: Genome, circular: Optional[bool] = True,
+    data: "pandas.DataFrame",
+    genome: Genome,
+    circular: Optional[bool] = True,
 ) -> List[Position]:
     """Function to detect GC skew shift.
 
@@ -295,53 +322,53 @@ def gc_skew_shift_detection(
                 if i < alpha:  # Edge case too close to chrom start.
                     a = np.sum(
                         [
-                            x / (abs(x) + 10 ** -12)
+                            x / (abs(x) + 10**-12)
                             for x in data_chrom.val.iloc[0:i]
                         ]
                     )
                     if circular:
                         a += np.sum(
                             [
-                                x / (abs(x) + 10 ** -12)
+                                x / (abs(x) + 10**-12)
                                 for x in data_chrom.val.iloc[n - alpha + i : n]
                             ]
                         )
                     b = np.sum(
                         [
-                            x / (abs(x) + 10 ** -12)
+                            x / (abs(x) + 10**-12)
                             for x in data_chrom.val.iloc[i : i + alpha]
                         ]
                     )
                 elif i + alpha > n - 1:  # Edge case too close to chrom end.
                     a = np.sum(
                         [
-                            x / (abs(x) + 10 ** -12)
+                            x / (abs(x) + 10**-12)
                             for x in data_chrom.val.iloc[i - alpha : i]
                         ]
                     )
                     b = np.sum(
                         [
-                            x / (abs(x) + 10 ** -12)
+                            x / (abs(x) + 10**-12)
                             for x in data_chrom.val.iloc[i:n]
                         ]
                     )
                     if circular:
                         b += np.sum(
                             [
-                                x / (abs(x) + 10 ** -12)
+                                x / (abs(x) + 10**-12)
                                 for x in data_chrom.val.iloc[0 : alpha - n + i]
                             ]
                         )
                 else:
                     a = np.sum(
                         [
-                            x / (abs(x) + 10 ** -12)
+                            x / (abs(x) + 10**-12)
                             for x in data_chrom.val.iloc[i - alpha : i]
                         ]
                     )
                     b = np.sum(
                         [
-                            x / (abs(x) + 10 ** -12)
+                            x / (abs(x) + 10**-12)
                             for x in data_chrom.val.iloc[i : i + alpha]
                         ]
                     )
@@ -366,7 +393,7 @@ def gc_skew_shift_detection(
 
 def get_window(val: List, pos: int, wind: int, circular: bool = True) -> List:
     """Function to extract a window from list. it can wrap it if circular track.
-    
+
     Parameters
     ----------
     val : list of values
@@ -409,6 +436,7 @@ def main_oriter_detection(
     gc_skew_file: str,
     pars_file: str,
     outfile: str,
+    mats_file: Optional[str] = None,
     cov_file: Optional[str] = None,
     window: Optional[int] = 50_000,
     circular: Optional[bool] = True,
@@ -439,12 +467,24 @@ def main_oriter_detection(
                 description="parS",
             )
         )
-
-    # Import coverage track.
-    if cov_file is not None:
-        cov_data = bcio.generate_track(cov_file, circular)
-    else:
-        cov_data = None
+    # Import matS data.
+    if mats_file is not None:
+        mats_tmp = pd.read_csv(
+            mats_file,
+            sep="\t",
+            header=None,
+            names=["chr", "start", "end", "type", "seq", "err"],
+        )
+        mats_data = []
+        for i in mats_tmp.index:
+            mats_data.append(
+                Fragment(
+                    mats_tmp.loc[i, "chr"],
+                    mats_tmp.loc[i, "start"],
+                    mats_tmp.loc[i, "end"],
+                    description="matS",
+                )
+            )
 
     # Compute GC_shift.
     gc_shift = gc_skew_shift_detection(gc_skew_data, genome, circular)
@@ -454,7 +494,8 @@ def main_oriter_detection(
         gc_shift,
         pars_data,
         genome,
-        cov_data,
+        mats_data,
+        cov_file,
         window,
         circular,
     )
@@ -463,6 +504,18 @@ def main_oriter_detection(
     with open(outfile, "w") as out:
         for p in pos:
             out.write(f"{p.chrom}\t{p.coord}\t{p.description}\n")
+
+
+def interpolate_nmad(values: "numpy.ndarray", n: int = 3) -> "numpy.ndarray":
+    """Function to interpolate values which are at different from the median
+    more than n times the mad.
+    """
+    mad = np.nanmedian(np.absolute(values - np.nanmedian(values)))
+    med = np.nanmedian(values)
+    values = [x if abs(x - med) <= mad * n else np.nan for x in values]
+    values = pd.DataFrame(values).interpolate().values.ravel().tolist()
+    values[0] = values[1]
+    return values
 
 
 def remove_nmad(values: "numpy.ndarray", n: int = 3) -> "numpy.ndarray":
