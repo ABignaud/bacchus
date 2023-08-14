@@ -84,7 +84,7 @@ def detect_ori_ter(
     genome: Genome,
     mats: Optional[List[Fragment]],
     cov_file: Optional[str] = None,
-    window: Optional[int] = 50_000,
+    cov_binning: Optional[int] = 5_000,
     circular: bool = True,
 ) -> List[Position]:
     """Function to find the ori and ter thanks to GC skew and parS sites. If no
@@ -103,8 +103,8 @@ def detect_ori_ter(
         List of Fragments corresponding to the matS sites.
     cov_file : str
         Path to the coverage bigwig file.
-    window : int
-        Size of the window to average coverage at a GC shift.
+    cov_binning : int
+        Binning size of the coverage.
     circular : bool
         Either the chromosomes are circular or not.
 
@@ -113,10 +113,7 @@ def detect_ori_ter(
     list of Positions:
         Ori and ter positions.
     """
-
     pos_list = []
-    stride = window // 2
-
     # Iterates on each chromosome.
     for chrom in genome.chroms:
         chrom_size = len(genome.chroms[chrom])
@@ -146,30 +143,40 @@ def detect_ori_ter(
         else:  # Cas with no parS sites
             # Import cov data
             if cov_file is not None:
-                cov_chrom, _ = bcio.extract_big_wig(
-                    cov_file, binning=stride, chroms=[chrom]
-                )
-                x = np.arange(0, len(cov_chrom) * stride, stride)
-                cov_chrom = interpolate_nmad(cov_chrom)
-                cov_chrom = [i - min(cov_chrom) for i in cov_chrom]
-                cov_chrom = [i / max(cov_chrom) for i in cov_chrom]
-                s = 10
-                c = []
-                while (len(c) != 2) and (s < 50):
-                    tck_s2 = splrep(x, cov_chrom, s=s, k=3, per=True)
-                    min_derivate = min(abs(BSpline(*tck_s2).derivative()(x)))
-                    mins = [
-                        i
-                        for i in np.arange(0, x[-1], stride / 100)
-                        if abs(BSpline(*tck_s2).derivative()(i)) < min_derivate
-                    ]
-                    oriter = np.unique([k // stride * stride for k in mins])
-                    s += 1
-                if s == 50:
+                try: # Handle case of empty contigs.
+                    cov_chrom, _ = bcio.extract_big_wig(
+                        cov_file, binning=cov_binning, chroms=[chrom]
+                    )
+                except KeyError:
                     pos_list.append(Position(chrom, ori, description="Ori"))
                     pos_list.append(Position(chrom, ter, description="Ter"))
                     continue
-                if BSpline(*tck_s2)(oriter[0]) < BSpline(*tck_s2)(oriter[1]):
+                x = np.arange(0, len(cov_chrom) * cov_binning, cov_binning)
+                cov_chrom = interpolate_nmad(cov_chrom)
+                cov_chrom = [i - min(cov_chrom) for i in cov_chrom]
+                if (max(cov_chrom) > 0) and (len(x) > 10):
+                    cov_chrom = [i / max(cov_chrom) for i in cov_chrom]
+                else:
+                    pos_list.append(Position(chrom, ori, description="Ori"))
+                    pos_list.append(Position(chrom, ter, description="Ter"))
+                    continue
+                s, n = 5, 0
+                oriter = [0]
+                while (len(oriter) != 2) and (s < 50) and (n < 100):
+                    tck_s = splrep(x, cov_chrom, s=s, k=3, per=True)
+                    min_derivate = min(abs(BSpline(*tck_s).derivative()(x)))
+                    mins = [
+                        i
+                        for i in np.arange(0, x[-1], cov_binning / 100)
+                        if abs(BSpline(*tck_s).derivative()(i)) < min_derivate
+                    ]
+                    oriter = np.unique([k // cov_binning * cov_binning for k in mins])
+                    s += len(oriter) / 20
+                if (s >= 50) or (n == 30):
+                    pos_list.append(Position(chrom, ori, description="Ori"))
+                    pos_list.append(Position(chrom, ter, description="Ter"))
+                    continue
+                if BSpline(*tck_s)(oriter[0]) < BSpline(*tck_s)(oriter[1]):
                     ori_pos = oriter[1]
                     ter_pos = oriter[0]
                 else:
@@ -268,6 +275,7 @@ def frags_center(
 def gc_skew_shift_detection(
     data: "pandas.DataFrame",
     genome: Genome,
+    alpha: Optional[int] = 100,
     circular: Optional[bool] = True,
 ) -> List[Position]:
     """Function to detect GC skew shift.
@@ -287,7 +295,7 @@ def gc_skew_shift_detection(
         List of the GC shift position.
     """
     data.columns = ["chr", "start", "end", "val"]
-    alpha = 100  # use 100 windows to average the inversion.
+    alpha = alpha  # use 100 windows to average the inversion.
 
     # Look for step and window_size
     step = data.start[1] - data.start[0]
@@ -299,8 +307,8 @@ def gc_skew_shift_detection(
 
     for chrom in genome.chroms:
         # Initialization
-        diff = 1000
-        pos = 0
+        diff = alpha * 2 + 1 
+        pos = -1
         # Subset data by chromosome.
         data_chrom = data.loc[data["chr"] == chrom]
         n = data_chrom.shape[0]
@@ -379,13 +387,15 @@ def gc_skew_shift_detection(
                     curr_pos = int(
                         data_chrom.start.iloc[i] + int(window / 2) - 1
                     )  # -1 for the 0-based.
-                    if curr_pos > pos + 200000 and pos != 0:
+                    print(curr_pos)
+                    if (curr_pos > pos + alpha * step) and (pos != -1):
                         pos_shift.append(Position(chrom, pos))
                         diff = curr_diff
                         pos = curr_pos
                     if curr_diff < diff:  # The closer to 0 the better.
                         diff = curr_diff
                         pos = curr_pos
+                        print(pos)
             previous_value = current_value
         pos_shift.append(Position(chrom, pos))
     return pos_shift
@@ -414,7 +424,7 @@ def get_window(val: List, pos: int, wind: int, circular: bool = True) -> List:
     n = len(val)
     if circular:
         if pos < wind:
-            val_window = np.concatenate((val[wind - pos :], val[: pos + wind]))
+            val_window = np.concatenate((val[n - wind + pos :], val[: pos + wind]))
         elif pos > n - wind:
             val_window = np.concatenate(
                 (val[pos - wind :], val[: pos - n - wind])
@@ -438,7 +448,8 @@ def main_oriter_detection(
     outfile: str,
     mats_file: Optional[str] = None,
     cov_file: Optional[str] = None,
-    window: Optional[int] = 50_000,
+    alpha: Optional[int] = 100,
+    cov_binning: Optional[int] = 5_000,
     circular: Optional[bool] = True,
 ):
     # Import genome.
@@ -487,7 +498,7 @@ def main_oriter_detection(
             )
 
     # Compute GC_shift.
-    gc_shift = gc_skew_shift_detection(gc_skew_data, genome, circular)
+    gc_shift = gc_skew_shift_detection(gc_skew_data, genome, alpha, circular)
 
     # Detect ori and ter.
     pos = detect_ori_ter(
@@ -496,7 +507,7 @@ def main_oriter_detection(
         genome,
         mats_data,
         cov_file,
-        window,
+        cov_binning,
         circular,
     )
 
