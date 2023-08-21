@@ -154,7 +154,7 @@ def detect_ori_ter(
                 x = np.arange(0, len(cov_chrom) * cov_binning, cov_binning)
                 cov_chrom = interpolate_nmad(cov_chrom)
                 cov_chrom = [i - min(cov_chrom) for i in cov_chrom]
-                if (max(cov_chrom) > 0) and (len(x) > 10):
+                if (max(cov_chrom) > 0) and (len(x) > 20):
                     cov_chrom = [i / max(cov_chrom) for i in cov_chrom]
                 else:
                     pos_list.append(Position(chrom, ori, description="Ori"))
@@ -162,7 +162,7 @@ def detect_ori_ter(
                     continue
                 s, n = 5, 0
                 oriter = [0]
-                while (len(oriter) != 2) and (s < 50) and (n < 100):
+                while (len(oriter) != 2) and (s < 50) and (n < 30):
                     tck_s = splrep(x, cov_chrom, s=s, k=3, per=True)
                     min_derivate = min(abs(BSpline(*tck_s).derivative()(x)))
                     mins = [
