@@ -63,7 +63,7 @@ def directional_index(
     vec_right = np.zeros((window_size))
 
     # Extend the matrix base on circularity to avoid borders issue
-    M = bch.map_extend(M.todense(), window_size)
+    M = bch.map_extend(M, window_size)
 
     # Iterates on the matrix to build the diretcional index for each bin.
     for i in range(n):
