@@ -431,7 +431,7 @@ def get_window(val: List, pos: int, wind: int, circular: bool = True) -> List:
             )
         elif pos > n - wind:
             val_window = np.concatenate(
-                (val[pos - wind :], val[: pos - n - wind])
+                (val[pos - wind :], val[: pos - n + wind])
             )
         else:
             val_window = val[pos - wind : pos + wind]
