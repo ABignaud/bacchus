@@ -23,6 +23,7 @@ import pyfastx
 from typing import List, Optional, Tuple
 from bacchus.genomes import Genome, Fragment, Position, Track
 from scipy.interpolate import splrep, BSpline
+from scipy.signal import find_peaks
 
 
 def compute_oriter_ratio(
@@ -143,7 +144,7 @@ def detect_ori_ter(
         else:  # Cas with no parS sites
             # Import cov data
             if cov_file is not None:
-                try: # Handle case of empty contigs.
+                try:  # Handle case of empty contigs.
                     cov_chrom, _ = bcio.extract_big_wig(
                         cov_file, binning=cov_binning, chroms=[chrom]
                     )
@@ -152,31 +153,34 @@ def detect_ori_ter(
                     pos_list.append(Position(chrom, ter, description="Ter"))
                     continue
                 x = np.arange(0, len(cov_chrom) * cov_binning, cov_binning)
+                cov_chrom = [0 if np.isnan(x) else x for x in cov_chrom]
                 cov_chrom = interpolate_nmad(cov_chrom)
+                cov_chrom = [
+                    np.nanmin(cov_chrom) if np.isnan(x) else x
+                    for x in cov_chrom
+                ]
                 cov_chrom = [i - min(cov_chrom) for i in cov_chrom]
-                if (max(cov_chrom) > 0) and (len(x) > 20):
+                if (max(cov_chrom) > 0) and (len(x) > 50):
                     cov_chrom = [i / max(cov_chrom) for i in cov_chrom]
                 else:
                     pos_list.append(Position(chrom, ori, description="Ori"))
                     pos_list.append(Position(chrom, ter, description="Ter"))
                     continue
-                s, n = 5, 0
+                s = 1
                 oriter = [0]
-                while (len(oriter) != 2) and (s < 50) and (n < 30):
+                while (len(oriter) != 2) and (s < 100):
                     tck_s = splrep(x, cov_chrom, s=s, k=3, per=True)
-                    min_derivate = min(abs(BSpline(*tck_s).derivative()(x)))
-                    mins = [
-                        i
-                        for i in np.arange(0, x[-1], cov_binning / 100)
-                        if abs(BSpline(*tck_s).derivative()(i)) < min_derivate
+                    peaks_pos, _ = find_peaks(BSpline(*tck_s)(x))
+                    peaks_neg, _ = find_peaks(-BSpline(*tck_s)(x))
+                    oriter = [
+                        i * res for i in np.concatenate((peaks_pos, peaks_neg))
                     ]
-                    oriter = np.unique([k // cov_binning * cov_binning for k in mins])
-                    s += len(oriter) / 20
-                if (s >= 50) or (n == 30):
-                    pos_list.append(Position(chrom, ori, description="Ori"))
-                    pos_list.append(Position(chrom, ter, description="Ter"))
-                    continue
-                if BSpline(*tck_s)(oriter[0]) < BSpline(*tck_s)(oriter[1]):
+                    s += 0.25
+                if s >= 100:
+                    # Wild guess ori at 0.
+                    ori_pos = 0
+                    ter_pos = chrom_size // 2
+                elif BSpline(*tck_s)(oriter[0]) < BSpline(*tck_s)(oriter[1]):
                     ori_pos = oriter[1]
                     ter_pos = oriter[0]
                 else:
@@ -307,7 +311,7 @@ def gc_skew_shift_detection(
 
     for chrom in genome.chroms:
         # Initialization
-        diff = alpha * 2 + 1 
+        diff = alpha * 2 + 1
         pos = -1
         # Subset data by chromosome.
         data_chrom = data.loc[data["chr"] == chrom]
@@ -387,7 +391,6 @@ def gc_skew_shift_detection(
                     curr_pos = int(
                         data_chrom.start.iloc[i] + int(window / 2) - 1
                     )  # -1 for the 0-based.
-                    print(curr_pos)
                     if (curr_pos > pos + alpha * step) and (pos != -1):
                         pos_shift.append(Position(chrom, pos))
                         diff = curr_diff
@@ -395,7 +398,6 @@ def gc_skew_shift_detection(
                     if curr_diff < diff:  # The closer to 0 the better.
                         diff = curr_diff
                         pos = curr_pos
-                        print(pos)
             previous_value = current_value
         pos_shift.append(Position(chrom, pos))
     return pos_shift
@@ -424,7 +426,9 @@ def get_window(val: List, pos: int, wind: int, circular: bool = True) -> List:
     n = len(val)
     if circular:
         if pos < wind:
-            val_window = np.concatenate((val[n - wind + pos :], val[: pos + wind]))
+            val_window = np.concatenate(
+                (val[n - wind + pos :], val[: pos + wind])
+            )
         elif pos > n - wind:
             val_window = np.concatenate(
                 (val[pos - wind :], val[: pos - n - wind])
