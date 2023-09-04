@@ -180,6 +180,8 @@ def corr_matrix_sparse(
     M : scipy.sparse.csr_matrix
         The input, normalized contact map. Must be a single chromosome. Values
         are assumed to be only the upper triangle of a symmetric matrix.
+    detrend : bool
+        If enables detrend the matrix first. [Default: False].
     normalize : bool
         If enables normalize the matrix first. [Default: False].
     antidiagonal : bool

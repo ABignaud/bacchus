@@ -118,16 +118,16 @@ def di_borders(di: List[float], threshold=1.96) -> List[float]:
     # Initiation use last value as previous one as the genome is considered as
     # circular.
     borders = []
-    if di[-1] < -threshold:
-        negative = True
+    if di[-1] >= threshold:
+        positive = True
     else:
-        negative = False
+        positive = False
 
     # Iterates on the DI values
     for i, curr_di in enumerate(di):
-        if curr_di >= threshold and negative:
+        if curr_di <= -threshold and positive:
             borders.append(i)
-            negative = False
-        if curr_di <= -threshold:
-            negative = True
+            positive = False
+        if curr_di >= threshold:
+            positive = True
     return borders
