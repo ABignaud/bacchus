@@ -173,7 +173,8 @@ def detect_ori_ter(
                     peaks_pos, _ = find_peaks(BSpline(*tck_s)(x))
                     peaks_neg, _ = find_peaks(-BSpline(*tck_s)(x))
                     oriter = [
-                        i * res for i in np.concatenate((peaks_pos, peaks_neg))
+                        i * cov_binning
+                        for i in np.concatenate((peaks_pos, peaks_neg))
                     ]
                     s += 0.25
                 if s >= 100:
